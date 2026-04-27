@@ -654,11 +654,8 @@
     <div class="card-preview-oracle" id="cardPreviewOracle"></div>
   </div>
 
+  <script src="config.js"></script>
   <script>
-    // ── Config ─────────────────────────────────────────────────────────────
-    // After deploying cloudflare-worker/worker.js, replace the string below
-    // with your worker URL, e.g. 'https://edhrec-proxy.yourname.workers.dev'
-    const EDHREC_PROXY = 'https://edhrec-proxy.yourname.workers.dev';
 
     // ── State ──────────────────────────────────────────────────────────────
     let ownedCards      = null;   // OwnedCard[] — replaces server session
