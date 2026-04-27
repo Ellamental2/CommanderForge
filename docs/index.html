@@ -1118,11 +1118,12 @@
     }
 
     async function fetchCommanderData(commanderName) {
-      const slug = toEdhrecSlug(commanderName);
+      const slug  = toEdhrecSlug(commanderName);
+      const proxy = EDHREC_PROXY.replace(/\/$/, '');
       try {
-        let res = await fetch(`${EDHREC_PROXY}/pages/commanders/${slug}.json`);
+        let res = await fetch(`${proxy}/pages/commanders/${slug}.json`);
         if (!res.ok) {
-          res = await fetch(`${EDHREC_PROXY}/pages/commanders/${slug}-background.json`);
+          res = await fetch(`${proxy}/pages/commanders/${slug}-background.json`);
           if (!res.ok) return [];
         }
         return parseEdhrecResponse(await res.json());
