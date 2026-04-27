@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import { parseCardList } from './parser';
 import { fetchCardsBatch } from './scryfall';
-import { isLegalCommander, scoreCommander, buildDeck } from './deckbuilder';
+import { isLegalCommander, scoreCommander, buildDeck, isValidPartnerPair, findPartnerCandidates } from './deckbuilder';
 import { OwnedCard } from './types';
 
 const app = express();
@@ -62,6 +62,7 @@ app.post('/api/analyze', async (req: Request, res: Response): Promise<void> => {
     scores.sort((a, b) => b.matchPercent - a.matchPercent);
 
     // Store card data for subsequent deck-build requests
+    const partnerCandidates = findPartnerCandidates(ownedCards);
     const sessionId = newSessionId();
     sessions.set(sessionId, { ownedCards, createdAt: Date.now() });
 
@@ -70,6 +71,7 @@ app.post('/api/analyze', async (req: Request, res: Response): Promise<void> => {
       totalCards: ownedCards.length,
       commanderCount: commanders.length,
       commanders: scores,
+      partnerCandidates,
     });
   } catch (err) {
     console.error('/api/analyze error:', err);
@@ -81,9 +83,10 @@ app.post('/api/analyze', async (req: Request, res: Response): Promise<void> => {
 // Build a 100-card deck for the selected commander.
 
 app.post('/api/build-deck', async (req: Request, res: Response): Promise<void> => {
-  const { sessionId, commanderName } = req.body as {
+  const { sessionId, commanderName, partnerName } = req.body as {
     sessionId?: string;
     commanderName?: string;
+    partnerName?: string;
   };
 
   if (!sessionId || !commanderName) {
@@ -107,9 +110,23 @@ app.post('/api/build-deck', async (req: Request, res: Response): Promise<void> =
     return;
   }
 
+  let partnerOwned: (typeof ownedCards)[number] | undefined;
+  if (partnerName) {
+    partnerOwned = ownedCards.find(oc => oc.card.name.toLowerCase() === partnerName.toLowerCase());
+    if (!partnerOwned) {
+      res.status(404).json({ error: `Partner "${partnerName}" not found in your collection.` });
+      return;
+    }
+    if (!isValidPartnerPair(commanderOwned.card, partnerOwned.card)) {
+      res.status(400).json({ error: `"${commanderName}" and "${partnerName}" are not a valid partner pair.` });
+      return;
+    }
+  }
+
   try {
-    console.log(`Building deck for ${commanderName}…`);
-    const deck = await buildDeck(commanderOwned.card, ownedCards);
+    const label = partnerName ? `${commanderName} + ${partnerName}` : commanderName;
+    console.log(`Building deck for ${label}…`);
+    const deck = await buildDeck(commanderOwned.card, ownedCards, partnerOwned?.card);
     res.json(deck);
   } catch (err) {
     console.error('/api/build-deck error:', err);

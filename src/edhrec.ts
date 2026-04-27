@@ -22,8 +22,20 @@ export function edhrecCommanderUrl(name: string): string {
  * Fetches the EDHRec recommendation list for a given commander.
  * Returns an empty array on any failure (network error, 404, unexpected shape).
  */
-export async function fetchCommanderData(commanderName: string): Promise<EdhrecCard[]> {
+export async function fetchCommanderData(commanderName: string, partnerName?: string): Promise<EdhrecCard[]> {
   const slug = toEdhrecSlug(commanderName);
+
+  // For partner pairs, try the combined EDHRec page first (slugs sorted alphabetically)
+  if (partnerName) {
+    const partnerSlug = toEdhrecSlug(partnerName);
+    const [s1, s2] = [slug, partnerSlug].sort();
+    const pairUrl = `${EDHREC_BASE}/pages/commanders/${s1}-and-${s2}.json`;
+    try {
+      const pairRes = await fetch(pairUrl, { headers: { 'User-Agent': 'mtg-deck-builder/1.0' } });
+      if (pairRes.ok) return parseEdhrecResponse(await pairRes.json());
+    } catch { /* fall through to individual commander */ }
+  }
+
   const url = `${EDHREC_BASE}/pages/commanders/${slug}.json`;
 
   try {
@@ -51,7 +63,8 @@ function parseEdhrecResponse(data: any): EdhrecCard[] {
   const cards: EdhrecCard[] = [];
   let rank = 0;
 
-  for (const list of cardlists as Array<{ cardviews?: unknown[] }>) {
+  for (const list of cardlists as Array<{ tag?: string; cardviews?: unknown[] }>) {
+    const isGameChangerList = list.tag === 'gamechangers';
     for (const view of list.cardviews ?? []) {
       // cardviews entries can be either a card object or an array of card objects (sub-groups)
       if (Array.isArray(view)) {
@@ -62,6 +75,7 @@ function parseEdhrecResponse(data: any): EdhrecCard[] {
               inclusion: subview.inclusion ?? 0,
               synergy: subview.synergy ?? 0,
               rank: rank++,
+              isGameChanger: isGameChangerList,
             });
           }
         }
@@ -73,6 +87,7 @@ function parseEdhrecResponse(data: any): EdhrecCard[] {
             inclusion: v.inclusion ?? 0,
             synergy: v.synergy ?? 0,
             rank: rank++,
+            isGameChanger: isGameChangerList,
           });
         }
       }

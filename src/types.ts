@@ -39,9 +39,18 @@ export interface EdhrecCard {
   inclusion: number;   // % of decks that include it (0–100)
   synergy: number;     // synergy score vs. average
   rank: number;        // position in EDHRec recommendation list
+  isGameChanger: boolean;
 }
 
 // ── Response shapes for the API ────────────────────────────────────────────
+
+export type PartnerType =
+  | 'partner'           // generic Partner keyword — pairs with any other 'partner'
+  | 'friends-forever'   // Friends forever — pairs with any other 'friends-forever'
+  | 'partner-with'      // Partner with X — pairs only with the named card
+  | 'chooses-background'// Choose a Background — pairs with any 'background'
+  | 'background'        // Background enchantment — pairs with any 'chooses-background'
+  | null;
 
 export interface CommanderResult {
   name: string;
@@ -51,7 +60,10 @@ export interface CommanderResult {
   matchPercent: number;
   edhrecUrl: string;
   imageUrl: string | null;
+  imageUrlBack: string | null;
   oracleText: string;
+  partnerType: PartnerType;
+  partnerWith: string | null; // only set when partnerType === 'partner-with'
 }
 
 export interface DeckCard {
@@ -60,18 +72,24 @@ export interface DeckCard {
   typeLine: string;
   colorIdentity: string[];
   imageUrl: string | null;
+  imageUrlBack: string | null;
   edhrecRank?: number;
   isRecommended: boolean;
+  isGameChanger: boolean;
   inclusion?: number;
 }
 
+export interface CommanderInfo {
+  name: string;
+  imageUrl: string | null;
+  imageUrlBack: string | null;
+  colorIdentity: string[];
+  oracleText: string;
+}
+
 export interface DeckResponse {
-  commander: {
-    name: string;
-    imageUrl: string | null;
-    colorIdentity: string[];
-    oracleText: string;
-  };
+  commander: CommanderInfo;
+  partner?: CommanderInfo;
   cards: DeckCard[];
   totalCards: number;
   slotsRemaining: number;

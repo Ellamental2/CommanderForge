@@ -87,3 +87,12 @@ export function getCardImageUrl(
   if (card.card_faces?.[0]?.image_uris) return card.card_faces[0].image_uris[size] ?? null;
   return null;
 }
+
+/** Get the back face image URL for double-faced cards; null for single-faced cards */
+export function getCardBackImageUrl(
+  card: ScryfallCard,
+  size: 'small' | 'normal' | 'large' = 'normal'
+): string | null {
+  if (card.card_faces?.[1]?.image_uris) return card.card_faces[1].image_uris[size] ?? null;
+  return null;
+}

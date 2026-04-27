@@ -18,8 +18,9 @@ export function parseCardList(content: string): ParsedCard[] {
   const cards: ParsedCard[] = [];
 
   for (const line of lines) {
-    // Full Arena format: "2 Sure Strike (FDN) 209" or "2 Sure Strike (FDN) 209 *F*"
-    const arenaMatch = line.match(/^(\d+)\s+(.+?)\s+\(([A-Z0-9]+)\)\s+(\d+[a-z]?)(?:\s+\*\w+\*)*$/i);
+    // Full Arena format: "2 Sure Strike (FDN) 209" — collector number may be
+    // non-standard (e.g. 72★, CN2-30, GR7, CHK-175); anything after it is ignored.
+    const arenaMatch = line.match(/^(\d+)\s+(.+?)\s+\(([A-Z0-9]+)\)\s+(\S+).*$/i);
     if (arenaMatch) {
       cards.push({
         quantity: parseInt(arenaMatch[1], 10),

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"d:/Downloads/mtg-deck-builder/mtg-deck-builder\" status)",
+      "Bash(git -C \"d:/Downloads/mtg-deck-builder/mtg-deck-builder\" diff HEAD -- public/index.html)",
+      "Bash(git -C \"d:/Downloads/mtg-deck-builder/mtg-deck-builder\" add docs/ cloudflare-worker/)",
+      "Bash(git -C d:/Downloads/mtg-deck-builder/mtg-deck-builder commit -m ' *)",
+      "Bash(git -C \"d:/Downloads/mtg-deck-builder/mtg-deck-builder\" push origin main)",
+      "Bash(git -C \"d:/Downloads/mtg-deck-builder/mtg-deck-builder\" add docs/config.js docs/index.html)",
+      "Bash(git -C \"d:/Downloads/mtg-deck-builder/mtg-deck-builder\" add docs/config.js)",
+      "Bash(git -C \"d:/Downloads/mtg-deck-builder/mtg-deck-builder\" add docs/index.html)",
+      "Bash(git -C \"d:/Downloads/mtg-deck-builder/mtg-deck-builder\" add cloudflare-worker/worker.js)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}
