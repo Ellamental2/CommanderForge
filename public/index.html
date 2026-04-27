@@ -463,6 +463,15 @@
       font-family: 'Cinzel', serif;
     }
 
+    .deck-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
     .slots-warning {
       display: inline-block;
       margin-top: 10px;
@@ -630,8 +639,11 @@
         </div>
       </div>
       <div class="deck-categories" id="deckCategories"></div>
-      <div class="legend">
-        <span class="legend-item"><span class="rec-dot"></span> EDHRec recommended</span>
+      <div class="deck-footer">
+        <div class="legend">
+          <span class="legend-item"><span class="rec-dot"></span> EDHRec recommended</span>
+        </div>
+        <button class="btn btn-ghost" id="exportBtn" onclick="exportToMoxfield()">Export to Moxfield</button>
       </div>
     </section>
   </div>
@@ -646,6 +658,7 @@
     // ── State ──────────────────────────────────────────────────────────────
     let sessionId = null;
     let selectedCommander = null;
+    let currentDeck = null;
     const cardImages = {};   // name → imageUrl cache
 
     // ── DOM refs ───────────────────────────────────────────────────────────
@@ -815,8 +828,30 @@
       }
     }
 
+    // ── Export to Moxfield ─────────────────────────────────────────────────
+    function exportToMoxfield() {
+      if (!currentDeck) return;
+      const lines = [
+        'Commander',
+        `1 ${currentDeck.commander.name}`,
+        '',
+        'Deck',
+      ];
+      for (const c of currentDeck.cards) {
+        lines.push(`${c.quantity} ${c.name}`);
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `${currentDeck.commander.name.replace(/[^a-z0-9]/gi, '_')}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
     // ── Render deck ────────────────────────────────────────────────────────
     function renderDeck(deck) {
+      currentDeck = deck;
       // Header
       const imgEl = document.getElementById('deckCommanderImg');
       imgEl.src = deck.commander.imageUrl || '';
