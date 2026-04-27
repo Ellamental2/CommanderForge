@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commander Forge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Cinzel:wght@400;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Variables ────────────────────────────────────────────────────── */
+    :root {
+      --bg:        #0d0d14;
+      --surface:   #13131f;
+      --surface2:  #1a1a2b;
+      --border:    #2a2a3f;
+      --gold:      #c9a84c;
+      --gold-dim:  #7a6230;
+      --gold-glow: rgba(201,168,76,0.15);
+      --text:      #e8e0d0;
+      --text-dim:  #8a8070;
+      --red:       #c0392b;
+      --white-pip: #f5f5dc;
+      --blue-pip:  #1a6fa8;
+      --black-pip: #2a1a2e;
+      --red-pip:   #c0392b;
+      --green-pip: #1e7a3c;
+      --radius:    6px;
+    }
+
+    /* ── Reset & Base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'EB Garamond', Georgia, serif;
+      font-size: 17px;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Grain texture overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.4;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────────────── */
+    .app {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px 60px;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────────── */
+    header {
+      text-align: center;
+      padding: 52px 0 36px;
+      position: relative;
+    }
+
+    header::after {
+      content: '';
+      display: block;
+      margin: 24px auto 0;
+      width: 320px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+
+    .header-eyebrow {
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: var(--gold-dim);
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: clamp(28px, 5vw, 46px);
+      font-weight: 700;
+      color: var(--gold);
+      text-shadow: 0 0 40px rgba(201,168,76,0.3), 0 2px 4px rgba(0,0,0,0.8);
+      letter-spacing: 2px;
+      line-height: 1.15;
+    }
+
+    .header-sub {
+      margin-top: 10px;
+      color: var(--text-dim);
+      font-style: italic;
+      font-size: 17px;
+    }
+
+    /* ── Upload Section ───────────────────────────────────────────────── */
+    .upload-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      margin-bottom: 36px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-section::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+
+    .section-title {
+      font-family: 'Cinzel', serif;
+      font-size: 13px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 20px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .file-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 180px;
+      min-height: 120px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      color: var(--text-dim);
+      font-size: 14px;
+      font-family: 'Cinzel', serif;
+      letter-spacing: 1px;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .file-label:hover {
+      border-color: var(--gold-dim);
+      color: var(--gold);
+      background: var(--gold-glow);
+    }
+
+    .file-label.has-file {
+      border-color: var(--gold);
+      color: var(--gold);
+      background: var(--gold-glow);
+    }
+
+    .file-icon { font-size: 28px; }
+
+    #fileInput { display: none; }
+
+    textarea {
+      flex: 1;
+      min-width: 240px;
+      min-height: 120px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      padding: 12px 14px;
+      resize: vertical;
+      transition: border-color 0.2s;
+      line-height: 1.5;
+    }
+
+    textarea::placeholder { color: var(--text-dim); }
+    textarea:focus { outline: none; border-color: var(--gold-dim); }
+
+    .actions { margin-top: 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+    .btn {
+      font-family: 'Cinzel', serif;
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 11px 28px;
+      border-radius: var(--radius);
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #8b6914, var(--gold));
+      color: #0d0a04;
+      font-weight: 700;
+      box-shadow: 0 2px 12px rgba(201,168,76,0.25);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, var(--gold), #e8c56a);
+      box-shadow: 0 4px 20px rgba(201,168,76,0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+
+    .status-text {
+      color: var(--text-dim);
+      font-style: italic;
+      font-size: 15px;
+    }
+
+    /* ── Progress / Spinner ───────────────────────────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error ────────────────────────────────────────────────────────── */
+    .error-box {
+      background: rgba(192, 57, 43, 0.12);
+      border: 1px solid rgba(192, 57, 43, 0.4);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      color: #e88;
+      font-size: 15px;
+      margin-top: 16px;
+    }
+
+    /* ── Commander Grid ───────────────────────────────────────────────── */
+    .commanders-section { margin-bottom: 36px; }
+
+    .results-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .results-count {
+      font-family: 'Cinzel', serif;
+      color: var(--text-dim);
+      font-size: 13px;
+      letter-spacing: 2px;
+    }
+
+    .commander-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 18px;
+    }
+
+    .commander-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      animation: fadeUp 0.3s ease both;
+    }
+
+    .commander-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--gold-dim);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px var(--gold-dim);
+    }
+
+    .commander-card.selected {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px var(--gold), 0 8px 32px rgba(201,168,76,0.2);
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-art {
+      position: relative;
+      aspect-ratio: 5/3.5;
+      overflow: hidden;
+      background: var(--surface2);
+    }
+
+    .card-art img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      display: block;
+    }
+
+    .card-art-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      color: var(--border);
+    }
+
+    .card-body {
+      padding: 12px 14px;
+    }
+
+    .card-name {
+      font-family: 'Cinzel', serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+      margin-bottom: 8px;
+    }
+
+    .card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Mana pips */
+    .pips { display: flex; gap: 3px; flex-wrap: wrap; }
+
+    .pip {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 8px;
+      font-weight: 700;
+      border: 1px solid rgba(0,0,0,0.4);
+      flex-shrink: 0;
+    }
+
+    .pip-W { background: var(--white-pip); color: #555; }
+    .pip-U { background: var(--blue-pip);  color: #fff; }
+    .pip-B { background: #442255; color: #ddd; }
+    .pip-R { background: var(--red-pip);   color: #fff; }
+    .pip-G { background: var(--green-pip); color: #fff; }
+    .pip-C { background: #777; color: #fff; }
+
+    /* Match score */
+    .match-score {
+      font-family: 'Cinzel', serif;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .match-high  { color: #6dba7d; }
+    .match-mid   { color: var(--gold); }
+    .match-low   { color: var(--text-dim); }
+
+    .match-bar-wrap {
+      margin-top: 8px;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .match-bar {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .match-bar-high  { background: #6dba7d; }
+    .match-bar-mid   { background: var(--gold); }
+    .match-bar-low   { background: var(--text-dim); }
+
+    .valid-count {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* ── Deck View ────────────────────────────────────────────────────── */
+    .deck-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .deck-section::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+
+    .deck-header {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+
+    .deck-commander-img {
+      width: 80px;
+      border-radius: 4px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+      flex-shrink: 0;
+    }
+
+    .deck-commander-info h2 {
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 20px;
+      color: var(--gold);
+      margin-bottom: 6px;
+    }
+
+    .deck-stats {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .deck-stat {
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+
+    .deck-stat strong {
+      color: var(--text);
+      font-family: 'Cinzel', serif;
+    }
+
+    .deck-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .slots-warning {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 5px 12px;
+      background: rgba(192,57,43,0.1);
+      border: 1px solid rgba(192,57,43,0.3);
+      border-radius: 3px;
+      color: #e88;
+      font-size: 13px;
+    }
+
+    /* Card list by category */
+    .deck-categories {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .category-group h3 {
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--gold-dim);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+      margin-bottom: 10px;
+    }
+
+    .deck-card-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      cursor: pointer;
+      transition: background 0.15s;
+      border-radius: 3px;
+    }
+
+    .deck-card-row:hover { background: var(--surface2); }
+
+    .deck-card-qty {
+      font-family: 'Cinzel', serif;
+      font-size: 12px;
+      color: var(--text-dim);
+      width: 18px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .deck-card-name {
+      flex: 1;
+      font-size: 14.5px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .deck-card-name.recommended { color: #a0d4ac; }
+
+    .rec-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: #6dba7d;
+      flex-shrink: 0;
+    }
+
+    /* Card preview tooltip */
+    .card-preview {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
+      width: 220px;
+    }
+
+    .card-preview img {
+      width: 220px;
+      border-radius: 10px 10px 0 0;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+      display: block;
+    }
+
+    .card-preview-oracle {
+      background: rgba(14, 14, 22, 0.97);
+      color: #ddd;
+      font-size: 11px;
+      line-height: 1.55;
+      padding: 8px 10px;
+      border-radius: 0 0 10px 10px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+      white-space: pre-wrap;
+      max-height: 160px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    /* ── Legend ───────────────────────────────────────────────────────── */
+    .legend {
+      margin-top: 20px;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <p class="header-eyebrow">EDHRec-Powered</p>
+      <h1>Commander Forge</h1>
+      <p class="header-sub">Discover the strongest commanders hiding in your collection</p>
+    </header>
+
+    <!-- Upload -->
+    <section class="upload-section">
+      <p class="section-title">Your Collection</p>
+      <div class="input-row">
+        <label class="file-label" id="fileLabel" for="fileInput">
+          <span class="file-icon">📄</span>
+          <span id="fileLabelText">Load File</span>
+          <input type="file" id="fileInput" accept=".txt,.csv,.dec" />
+        </label>
+        <textarea
+          id="cardListInput"
+          placeholder="…or paste your card list here&#10;&#10;Format: 2 Sure Strike (FDN) 209&#10;        1 Lightning Bolt (M11) 149"
+          spellcheck="false"
+        ></textarea>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" id="analyzeBtn" disabled>Analyse Collection</button>
+        <button class="btn btn-ghost" id="clearBtn">Clear</button>
+        <span class="status-text" id="statusText"></span>
+      </div>
+      <div id="errorBox" class="error-box" style="display:none;"></div>
+    </section>
+
+    <!-- Commander Results -->
+    <section class="commanders-section" id="commandersSection" style="display:none;">
+      <div class="results-header">
+        <p class="section-title" style="margin-bottom:0;">Suggested Commanders</p>
+        <span class="results-count" id="resultsCount"></span>
+      </div>
+      <div class="commander-grid" id="commanderGrid"></div>
+    </section>
+
+    <!-- Deck View -->
+    <section class="deck-section" id="deckSection" style="display:none;">
+      <div class="deck-header">
+        <img class="deck-commander-img" id="deckCommanderImg" src="" alt="" />
+        <div class="deck-commander-info">
+          <h2 id="deckCommanderName"></h2>
+          <div class="pips" id="deckCommanderPips"></div>
+          <div class="deck-stats">
+            <span class="deck-stat"><strong id="deckTotal">—</strong> cards</span>
+            <span class="deck-stat" id="deckSlotsStat"></span>
+          </div>
+          <div id="slotsWarning" class="slots-warning" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="deck-categories" id="deckCategories"></div>
+      <div class="deck-footer">
+        <div class="legend">
+          <span class="legend-item"><span class="rec-dot"></span> EDHRec recommended</span>
+        </div>
+        <button class="btn btn-ghost" id="exportBtn" onclick="exportToMoxfield()">Export to Moxfield</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Card image preview tooltip -->
+  <div class="card-preview" id="cardPreview">
+    <img id="cardPreviewImg" src="" alt="" />
+    <div class="card-preview-oracle" id="cardPreviewOracle"></div>
+  </div>
+
+  <script>
+    // ── Config ─────────────────────────────────────────────────────────────
+    // After deploying cloudflare-worker/worker.js, replace the string below
+    // with your worker URL, e.g. 'https://edhrec-proxy.yourname.workers.dev'
+    const EDHREC_PROXY = 'https://edhrec-proxy.yourname.workers.dev';
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let ownedCards      = null;   // OwnedCard[] — replaces server session
+    let selectedCommander = null;
+    let currentDeck     = null;
+    const cardImages    = {};     // name → imageUrl cache
+
+    // ── DOM refs ───────────────────────────────────────────────────────────
+    const fileInput       = document.getElementById('fileInput');
+    const fileLabelEl     = document.getElementById('fileLabel');
+    const fileLabelText   = document.getElementById('fileLabelText');
+    const cardListInput   = document.getElementById('cardListInput');
+    const analyzeBtn      = document.getElementById('analyzeBtn');
+    const clearBtn        = document.getElementById('clearBtn');
+    const statusText      = document.getElementById('statusText');
+    const errorBox        = document.getElementById('errorBox');
+    const commanderSection  = document.getElementById('commandersSection');
+    const commanderGrid   = document.getElementById('commanderGrid');
+    const resultsCount    = document.getElementById('resultsCount');
+    const deckSection     = document.getElementById('deckSection');
+    const cardPreview       = document.getElementById('cardPreview');
+    const cardPreviewImg    = document.getElementById('cardPreviewImg');
+    const cardPreviewOracle = document.getElementById('cardPreviewOracle');
+
+    // ── File load ──────────────────────────────────────────────────────────
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        cardListInput.value = e.target.result;
+        fileLabelText.textContent = file.name;
+        fileLabelEl.classList.add('has-file');
+        checkReady();
+      };
+      reader.readAsText(file);
+    });
+
+    cardListInput.addEventListener('input', checkReady);
+
+    function checkReady() {
+      analyzeBtn.disabled = cardListInput.value.trim().length === 0;
+    }
+
+    clearBtn.addEventListener('click', () => {
+      cardListInput.value = '';
+      fileInput.value = '';
+      fileLabelText.textContent = 'Load File';
+      fileLabelEl.classList.remove('has-file');
+      commanderSection.style.display = 'none';
+      deckSection.style.display = 'none';
+      statusText.textContent = '';
+      hideError();
+      checkReady();
+      ownedCards = null;
+      selectedCommander = null;
+      currentDeck = null;
+    });
+
+    // ── Analyse ────────────────────────────────────────────────────────────
+    analyzeBtn.addEventListener('click', analyse);
+
+    async function analyse() {
+      const content = cardListInput.value.trim();
+      if (!content) return;
+
+      setStatus('<span class="spinner"></span>Fetching card data from Scryfall…');
+      analyzeBtn.disabled = true;
+      hideError();
+      commanderSection.style.display = 'none';
+      deckSection.style.display = 'none';
+      selectedCommander = null;
+
+      try {
+        const parsed = parseCardList(content);
+        if (parsed.length === 0) {
+          showError('Could not parse any cards from the provided list.');
+          setStatus('');
+          analyzeBtn.disabled = false;
+          return;
+        }
+
+        ownedCards = await fetchCardsBatch(parsed);
+
+        const commanders = ownedCards.filter(oc => isLegalCommander(oc.card));
+        if (commanders.length === 0) {
+          showError('No legal commanders found in your collection.');
+          setStatus('');
+          analyzeBtn.disabled = false;
+          return;
+        }
+
+        setStatus(`<span class="spinner"></span>Scoring ${commanders.length} commander(s) via EDHRec…`);
+
+        const scores = [];
+        for (const cmd of commanders) {
+          const score = await scoreCommander(cmd.card, ownedCards);
+          scores.push(score);
+          await sleep(200);
+        }
+        scores.sort((a, b) => b.matchPercent - a.matchPercent);
+
+        renderCommanders(scores, ownedCards.length);
+        setStatus(`Analysed ${ownedCards.length} card(s) — found ${commanders.length} potential commander(s)`);
+      } catch (e) {
+        showError('Error: ' + e.message);
+        setStatus('');
+      } finally {
+        analyzeBtn.disabled = false;
+      }
+    }
+
+    // ── Render commander grid ──────────────────────────────────────────────
+    function renderCommanders(commanders, totalCards) {
+      commanderGrid.innerHTML = '';
+
+      if (commanders.length === 0) {
+        commanderGrid.innerHTML = `<p style="color:var(--text-dim);font-style:italic;grid-column:1/-1;">
+          No legal commanders found in your collection.</p>`;
+      }
+
+      commanders.forEach((cmd, i) => {
+        const card = document.createElement('div');
+        card.className = 'commander-card';
+        card.style.animationDelay = `${i * 40}ms`;
+
+        const pct = cmd.matchPercent;
+        const barClass  = pct >= 40 ? 'match-bar-high'  : pct >= 20 ? 'match-bar-mid'  : 'match-bar-low';
+        const textClass = pct >= 40 ? 'match-high'       : pct >= 20 ? 'match-mid'       : 'match-low';
+
+        const pipsHtml = cmd.colorIdentity.map(c => `<span class="pip pip-${c}" title="${colorName(c)}">${c}</span>`).join('');
+
+        card.innerHTML = `
+          <div class="card-art">
+            ${cmd.imageUrl
+              ? `<img src="${cmd.imageUrl}" alt="${escHtml(cmd.name)}" loading="lazy" />`
+              : `<div class="card-art-placeholder">🃏</div>`
+            }
+          </div>
+          <div class="card-body">
+            <div class="card-name">${escHtml(cmd.name)}</div>
+            <div class="card-meta">
+              <div class="pips">${pipsHtml || '<span style="color:var(--text-dim);font-size:11px;">Colorless</span>'}</div>
+              <div class="match-score ${textClass}">${pct}%</div>
+            </div>
+            <div class="match-bar-wrap"><div class="match-bar ${barClass}" style="width:${pct}%"></div></div>
+            <div class="valid-count">${cmd.matchCount} / ${Math.min(99, cmd.validCardCount)} EDHRec matches</div>
+          </div>`;
+
+        card.addEventListener('click', () => selectCommander(card, cmd.name));
+
+        if (cmd.imageUrl) {
+          card.addEventListener('mouseenter', e => showCardPreview(cmd.imageUrl, cmd.oracleText, e));
+          card.addEventListener('mousemove',  e => movePreview(e));
+          card.addEventListener('mouseleave', hidePreview);
+        }
+
+        commanderGrid.appendChild(card);
+      });
+
+      resultsCount.textContent = commanders.length
+        ? `${commanders.length} found · sorted by EDHRec match`
+        : '';
+      commanderSection.style.display = '';
+    }
+
+    // ── Select a commander & build deck ───────────────────────────────────
+    async function selectCommander(cardEl, name) {
+      if (selectedCommander === name) return;
+      selectedCommander = name;
+
+      document.querySelectorAll('.commander-card').forEach(c => c.classList.remove('selected'));
+      cardEl.classList.add('selected');
+
+      deckSection.style.display = 'none';
+      setStatus('<span class="spinner"></span>Building deck…');
+
+      try {
+        const commanderOwned = ownedCards.find(
+          oc => oc.card.name.toLowerCase() === name.toLowerCase()
+        );
+        if (!commanderOwned) { showError(`Commander "${name}" not found.`); setStatus(''); return; }
+
+        const deck = await buildDeck(commanderOwned.card, ownedCards);
+        renderDeck(deck);
+        setStatus(`Deck built — ${deck.totalCards}/100 cards`);
+      } catch (e) {
+        showError('Error: ' + e.message);
+        setStatus('');
+      }
+    }
+
+    // ── Render deck ────────────────────────────────────────────────────────
+    function renderDeck(deck) {
+      currentDeck = deck;
+
+      const imgEl = document.getElementById('deckCommanderImg');
+      imgEl.src = deck.commander.imageUrl || '';
+      imgEl.style.display = deck.commander.imageUrl ? '' : 'none';
+      document.getElementById('deckCommanderName').textContent = deck.commander.name;
+
+      const deckHeader = document.querySelector('.deck-header');
+      deckHeader.onmouseenter = e => showCardPreview(deck.commander.imageUrl, deck.commander.oracleText, e);
+      deckHeader.onmousemove  = e => movePreview(e);
+      deckHeader.onmouseleave = hidePreview;
+
+      const pipsEl = document.getElementById('deckCommanderPips');
+      pipsEl.innerHTML = deck.commander.colorIdentity
+        .map(c => `<span class="pip pip-${c}">${c}</span>`).join('');
+
+      document.getElementById('deckTotal').textContent = deck.totalCards;
+
+      const slotsEl = document.getElementById('deckSlotsStat');
+      const warnEl  = document.getElementById('slotsWarning');
+      if (deck.slotsRemaining > 0) {
+        slotsEl.textContent = '';
+        warnEl.textContent = `⚠ ${deck.slotsRemaining} slot(s) unfilled — not enough eligible cards`;
+        warnEl.style.display = '';
+      } else {
+        slotsEl.innerHTML = `<span style="color:#6dba7d">Complete deck ✓</span>`;
+        warnEl.style.display = 'none';
+      }
+
+      for (const c of deck.cards) {
+        if (c.imageUrl) cardImages[c.name] = c.imageUrl;
+      }
+
+      const groups = {};
+      const ORDER = ['Creatures','Planeswalkers','Instants','Sorceries','Enchantments','Artifacts','Lands','Other'];
+      for (const cat of ORDER) groups[cat] = [];
+
+      for (const c of deck.cards) {
+        const cat = categorise(c.typeLine);
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push(c);
+      }
+
+      const categoriesEl = document.getElementById('deckCategories');
+      categoriesEl.innerHTML = '';
+
+      for (const cat of ORDER) {
+        if (!groups[cat] || groups[cat].length === 0) continue;
+        const group = document.createElement('div');
+        group.className = 'category-group';
+        group.innerHTML = `<h3>${cat} <span style="color:var(--text-dim);font-size:10px;letter-spacing:1px;">(${groups[cat].reduce((s,c) => s+c.quantity, 0)})</span></h3>`;
+
+        for (const c of groups[cat]) {
+          const row = document.createElement('div');
+          row.className = 'deck-card-row';
+          row.innerHTML = `
+            <span class="deck-card-qty">${c.quantity > 1 ? c.quantity : ''}</span>
+            ${c.isRecommended ? '<span class="rec-dot" title="EDHRec recommended"></span>' : '<span style="width:5px"></span>'}
+            <span class="deck-card-name ${c.isRecommended ? 'recommended' : ''}">${escHtml(c.name)}</span>`;
+
+          if (c.imageUrl) {
+            row.addEventListener('mouseenter', e => showCardPreview(c.imageUrl, null, e));
+            row.addEventListener('mousemove',  e => movePreview(e));
+            row.addEventListener('mouseleave', hidePreview);
+          }
+          group.appendChild(row);
+        }
+        categoriesEl.appendChild(group);
+      }
+
+      deckSection.style.display = '';
+      deckSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ── Export to Moxfield ─────────────────────────────────────────────────
+    function exportToMoxfield() {
+      if (!currentDeck) return;
+      const lines = [
+        'Commander',
+        `1 ${currentDeck.commander.name}`,
+        '',
+        'Deck',
+      ];
+      for (const c of currentDeck.cards) {
+        lines.push(`${c.quantity} ${c.name}`);
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `${currentDeck.commander.name.replace(/[^a-z0-9]/gi, '_')}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ── Card preview tooltip ───────────────────────────────────────────────
+    function showCardPreview(url, oracleText, e) {
+      if (!url) return;
+      cardPreviewImg.src = url;
+      if (oracleText) {
+        cardPreviewOracle.textContent = oracleText;
+        cardPreviewOracle.style.display = '';
+      } else {
+        cardPreviewOracle.style.display = 'none';
+      }
+      cardPreview.style.display = 'block';
+      movePreview(e);
+    }
+
+    function movePreview(e) {
+      const x = e.clientX + 16;
+      const y = e.clientY - 60;
+      const maxX = window.innerWidth  - 240;
+      const maxY = window.innerHeight - 520;
+      cardPreview.style.left = Math.min(x, maxX) + 'px';
+      cardPreview.style.top  = Math.max(10, Math.min(y, maxY)) + 'px';
+    }
+
+    function hidePreview() { cardPreview.style.display = 'none'; }
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function categorise(typeLine) {
+      if (!typeLine) return 'Other';
+      if (typeLine.includes('Creature'))     return 'Creatures';
+      if (typeLine.includes('Planeswalker')) return 'Planeswalkers';
+      if (typeLine.includes('Land'))         return 'Lands';
+      if (typeLine.includes('Enchantment'))  return 'Enchantments';
+      if (typeLine.includes('Artifact'))     return 'Artifacts';
+      if (typeLine.includes('Instant'))      return 'Instants';
+      if (typeLine.includes('Sorcery'))      return 'Sorceries';
+      return 'Other';
+    }
+
+    function colorName(c) {
+      return { W:'White', U:'Blue', B:'Black', R:'Red', G:'Green', C:'Colorless' }[c] ?? c;
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    function setStatus(html) { statusText.innerHTML = html; }
+    function showError(msg)  { errorBox.textContent = msg; errorBox.style.display = ''; }
+    function hideError()     { errorBox.style.display = 'none'; }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Parser (ported from src/parser.ts) ────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    function parseCardList(content) {
+      const lines = content
+        .split('\n')
+        .map(l => l.trim().replace(/\s+\*\w+\*(\s+\*\w+\*)*$/, ''))
+        .filter(l => l.length > 0 && !l.startsWith('//') && !l.startsWith('#'));
+
+      const cards = [];
+
+      for (const line of lines) {
+        const arenaMatch = line.match(/^(\d+)\s+(.+?)\s+\(([A-Z0-9]+)\)\s+(\S+).*$/i);
+        if (arenaMatch) {
+          cards.push({
+            quantity: parseInt(arenaMatch[1], 10),
+            name: arenaMatch[2].trim(),
+            set: arenaMatch[3].toUpperCase(),
+            collectorNumber: arenaMatch[4],
+          });
+          continue;
+        }
+
+        const qtyMatch = line.match(/^(\d+)\s+(.+)$/);
+        if (qtyMatch) {
+          cards.push({
+            quantity: parseInt(qtyMatch[1], 10),
+            name: qtyMatch[2].trim(),
+            set: '',
+            collectorNumber: '',
+          });
+          continue;
+        }
+
+        cards.push({ quantity: 1, name: line.trim(), set: '', collectorNumber: '' });
+      }
+
+      return cards;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Scryfall (ported from src/scryfall.ts) ─────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    const SCRYFALL_BASE = 'https://api.scryfall.com';
+    const BATCH_SIZE    = 75;
+    const RATE_LIMIT_MS = 120;
+
+    async function fetchCardsBatch(parsedCards) {
+      const results  = [];
+      const notFound = [];
+
+      for (let i = 0; i < parsedCards.length; i += BATCH_SIZE) {
+        const chunk = parsedCards.slice(i, i + BATCH_SIZE);
+
+        const identifiers = chunk.map(c => {
+          if (c.set && c.collectorNumber) {
+            return { set: c.set.toLowerCase(), collector_number: c.collectorNumber };
+          }
+          return { name: c.name };
+        });
+
+        const response = await fetch(`${SCRYFALL_BASE}/cards/collection`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifiers }),
+        });
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+
+        for (const scryfallCard of data.data) {
+          const original = chunk.find(c => {
+            if (c.set && c.collectorNumber) {
+              return (
+                c.set.toLowerCase() === scryfallCard.set.toLowerCase() &&
+                c.collectorNumber === scryfallCard.collector_number
+              );
+            }
+            return c.name.toLowerCase() === scryfallCard.name.toLowerCase();
+          });
+          results.push({ quantity: original?.quantity ?? 1, card: scryfallCard });
+        }
+
+        for (const nf of data.not_found ?? []) {
+          notFound.push(nf.name ?? JSON.stringify(nf));
+        }
+
+        if (i + BATCH_SIZE < parsedCards.length) await sleep(RATE_LIMIT_MS);
+      }
+
+      return results;
+    }
+
+    function getCardImageUrl(card, size = 'normal') {
+      if (card.image_uris) return card.image_uris[size] ?? null;
+      if (card.card_faces?.[0]?.image_uris) return card.card_faces[0].image_uris[size] ?? null;
+      return null;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── EDHRec (ported from src/edhrec.ts) ────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    function toEdhrecSlug(name) {
+      return name
+        .toLowerCase()
+        .replace(/[',\.!]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
+
+    function edhrecCommanderUrl(name) {
+      return `https://edhrec.com/commanders/${toEdhrecSlug(name)}`;
+    }
+
+    async function fetchCommanderData(commanderName) {
+      const slug = toEdhrecSlug(commanderName);
+      try {
+        let res = await fetch(`${EDHREC_PROXY}/pages/commanders/${slug}.json`);
+        if (!res.ok) {
+          res = await fetch(`${EDHREC_PROXY}/pages/commanders/${slug}-background.json`);
+          if (!res.ok) return [];
+        }
+        return parseEdhrecResponse(await res.json());
+      } catch {
+        return [];
+      }
+    }
+
+    function parseEdhrecResponse(data) {
+      const cardlists = data?.container?.json_dict?.cardlists ?? [];
+      const cards = [];
+      let rank = 0;
+
+      for (const list of cardlists) {
+        for (const view of list.cardviews ?? []) {
+          if (Array.isArray(view)) {
+            for (const subview of view) {
+              if (subview?.name) {
+                cards.push({ name: subview.name, inclusion: subview.inclusion ?? 0, synergy: subview.synergy ?? 0, rank: rank++ });
+              }
+            }
+          } else if (view?.name) {
+            cards.push({ name: view.name, inclusion: view.inclusion ?? 0, synergy: view.synergy ?? 0, rank: rank++ });
+          }
+        }
+      }
+
+      return cards;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── Deck builder (ported from src/deckbuilder.ts) ──────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    function getOracleText(card) {
+      if (card.oracle_text) return card.oracle_text;
+      return card.card_faces?.map(f => f.oracle_text ?? '').join(' ') ?? '';
+    }
+
+    function getTypeLine(card) {
+      if (card.type_line) return card.type_line;
+      return card.card_faces?.map(f => f.type_line ?? '').join(' ') ?? '';
+    }
+
+    function isLegalCommander(card) {
+      if (card.legalities?.commander !== 'legal') return false;
+      const typeLine   = getTypeLine(card);
+      const oracleText = getOracleText(card);
+      return (
+        (typeLine.includes('Legendary') && typeLine.includes('Creature')) ||
+        oracleText.includes('can be your commander')
+      );
+    }
+
+    function fitsColorIdentity(commanderColors, cardColors) {
+      return cardColors.every(c => commanderColors.includes(c));
+    }
+
+    async function scoreCommander(commander, allOwned) {
+      const edhrecCards = await fetchCommanderData(commander.name);
+      const edhrecNames = new Set(edhrecCards.map(c => c.name.toLowerCase()));
+
+      const validOwned = allOwned.filter(
+        oc => oc.card.id !== commander.id &&
+              fitsColorIdentity(commander.color_identity, oc.card.color_identity)
+      );
+
+      const matchingOwned = validOwned.filter(oc => edhrecNames.has(oc.card.name.toLowerCase()));
+
+      const denominator  = Math.min(99, edhrecCards.length);
+      const matchPercent = denominator > 0 ? Math.round((matchingOwned.length / denominator) * 100) : 0;
+
+      return {
+        name: commander.name,
+        colorIdentity: commander.color_identity,
+        matchCount: matchingOwned.length,
+        validCardCount: validOwned.length,
+        matchPercent,
+        edhrecUrl: edhrecCommanderUrl(commander.name),
+        imageUrl: getCardImageUrl(commander, 'normal'),
+        oracleText: getOracleText(commander),
+      };
+    }
+
+    const BASIC_LANDS = new Set([
+      'plains', 'island', 'swamp', 'mountain', 'forest',
+      'wastes', 'snow-covered plains', 'snow-covered island',
+      'snow-covered swamp', 'snow-covered mountain', 'snow-covered forest',
+    ]);
+
+    function isBasicLand(card) {
+      return getTypeLine(card).includes('Basic Land') || BASIC_LANDS.has(card.name.toLowerCase());
+    }
+
+    const LAND_CARE_RE   = /landfall|whenever a land|land enters|sacrifice a land|land card|search your library for a.*land|domain/i;
+    const MANA_SOURCE_RE = /\{T\}[^.]*Add|\bAdd\s+\{[WUBRGC2]/;
+
+    function caresAboutLands(card)    { return LAND_CARE_RE.test(getOracleText(card)); }
+    function isNonLandManaSource(card){ return !getTypeLine(card).includes('Land') && MANA_SOURCE_RE.test(getOracleText(card)); }
+
+    const BASE_LANDS = 38;
+
+    function calculateTargetLands(commander, ownedNonLands) {
+      const sample          = ownedNonLands.slice(0, 61);
+      const landCaringCount = sample.filter(oc => caresAboutLands(oc.card)).length;
+      const manaSourceCount = sample.filter(oc => isNonLandManaSource(oc.card)).length;
+
+      let target = BASE_LANDS;
+      if (caresAboutLands(commander)) {
+        target += 3;
+      } else if (landCaringCount >= 5) {
+        target += Math.min(Math.floor(landCaringCount / 3), 4);
+      }
+      target -= Math.floor(manaSourceCount / 2);
+      return Math.max(30, Math.min(45, target));
+    }
+
+    const MANA_COLORS   = new Set(['W', 'U', 'B', 'R', 'G']);
+    const COLOR_BASICS  = {
+      W: ['plains', 'snow-covered plains'],
+      U: ['island', 'snow-covered island'],
+      B: ['swamp', 'snow-covered swamp'],
+      R: ['mountain', 'snow-covered mountain'],
+      G: ['forest', 'snow-covered forest'],
+    };
+
+    function buildBasicPool(ownedLands) {
+      const pool = new Map();
+      for (const oc of ownedLands) {
+        if (!isBasicLand(oc.card)) continue;
+        const key   = oc.card.name.toLowerCase();
+        const entry = pool.get(key);
+        if (entry) entry.qty += oc.quantity;
+        else pool.set(key, { card: oc.card, qty: oc.quantity });
+      }
+      return pool;
+    }
+
+    function roundToIntegers(values, target) {
+      const entries  = Object.entries(values).map(([k, v]) => ({ k, floor: Math.floor(v), frac: v % 1 }));
+      const remainder = target - entries.reduce((s, e) => s + e.floor, 0);
+      entries.sort((a, b) => b.frac - a.frac);
+      const result = {};
+      entries.forEach((e, i) => { result[e.k] = e.floor + (i < remainder ? 1 : 0); });
+      return result;
+    }
+
+    function buildProportionalBasics(slotsAvailable, commanderColors, basicPool, selectedNonLands, edhrecMap) {
+      if (slotsAvailable <= 0) return [];
+
+      const colors = commanderColors.filter(c => MANA_COLORS.has(c));
+
+      if (colors.length === 0) {
+        const wastes = basicPool.get('wastes');
+        if (!wastes) return [];
+        return [makeDeckCard(wastes.card, Math.min(wastes.qty, slotsAvailable), edhrecMap)];
+      }
+
+      const counts = {};
+      for (const c of colors) counts[c] = 0;
+      for (const dc of selectedNonLands) {
+        for (const c of dc.colorIdentity) {
+          if (c in counts) counts[c]++;
+        }
+      }
+
+      const countTotal = Object.values(counts).reduce((s, n) => s + n, 0);
+      if (countTotal === 0) for (const c of colors) counts[c] = 1;
+      const weightTotal = Object.values(counts).reduce((s, n) => s + n, 0);
+
+      const rawAllocations = {};
+      for (const c of colors) rawAllocations[c] = (counts[c] / weightTotal) * slotsAvailable;
+      const allocations = roundToIntegers(rawAllocations, slotsAvailable);
+
+      const result = [];
+      for (const color of colors) {
+        let remaining = allocations[color];
+        for (const name of COLOR_BASICS[color]) {
+          if (remaining <= 0) break;
+          const entry = basicPool.get(name);
+          if (!entry || entry.qty <= 0) continue;
+          const qty = Math.min(entry.qty, remaining);
+          result.push(makeDeckCard(entry.card, qty, edhrecMap));
+          remaining -= qty;
+        }
+      }
+      return result;
+    }
+
+    async function buildDeck(commander, allOwned) {
+      const edhrecCards = await fetchCommanderData(commander.name);
+      const edhrecMap   = new Map(edhrecCards.map(c => [c.name.toLowerCase(), c]));
+
+      const validOwned = allOwned.filter(
+        oc => oc.card.id !== commander.id &&
+              fitsColorIdentity(commander.color_identity, oc.card.color_identity)
+      );
+
+      const edhrecSort = (a, b) => {
+        const aRec = edhrecMap.get(a.card.name.toLowerCase());
+        const bRec = edhrecMap.get(b.card.name.toLowerCase());
+        if (aRec && !bRec) return -1;
+        if (!aRec && bRec) return  1;
+        if (aRec && bRec)  return aRec.rank - bRec.rank;
+        return (a.card.cmc ?? 0) - (b.card.cmc ?? 0);
+      };
+
+      const ownedLands    = validOwned.filter(oc =>  getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
+      const ownedNonLands = validOwned.filter(oc => !getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
+
+      const targetLands  = calculateTargetLands(commander, ownedNonLands);
+      const nonLandSlots = 99 - targetLands;
+
+      const deckCards  = [];
+      const usedNames  = new Set();
+
+      for (const oc of ownedNonLands) {
+        if (deckCards.length >= nonLandSlots) break;
+        const nameLower = oc.card.name.toLowerCase();
+        if (usedNames.has(nameLower)) continue;
+        usedNames.add(nameLower);
+        deckCards.push(makeDeckCard(oc.card, 1, edhrecMap));
+      }
+
+      const selectedNonLands = [...deckCards];
+
+      const totalLandSlots = 99 - deckCards.length;
+      const nonBasicCap    = Math.ceil(totalLandSlots * 0.55);
+      let nonBasicFilled   = 0;
+      for (const oc of ownedLands) {
+        if (nonBasicFilled >= nonBasicCap) break;
+        if (isBasicLand(oc.card)) continue;
+        const nameLower = oc.card.name.toLowerCase();
+        if (usedNames.has(nameLower)) continue;
+        usedNames.add(nameLower);
+        deckCards.push(makeDeckCard(oc.card, 1, edhrecMap));
+        nonBasicFilled++;
+      }
+
+      const basicPool  = buildBasicPool(ownedLands);
+      const basicCards = buildProportionalBasics(
+        99 - deckCards.length,
+        commander.color_identity,
+        basicPool,
+        selectedNonLands,
+        edhrecMap
+      );
+      deckCards.push(...basicCards);
+
+      const slotsRemaining = 99 - deckCards.reduce((s, c) => s + c.quantity, 0);
+
+      return {
+        commander: {
+          name: commander.name,
+          imageUrl: getCardImageUrl(commander, 'normal'),
+          colorIdentity: commander.color_identity,
+          oracleText: getOracleText(commander),
+        },
+        cards: deckCards,
+        totalCards: 1 + deckCards.reduce((s, c) => s + c.quantity, 0),
+        slotsRemaining,
+      };
+    }
+
+    function makeDeckCard(card, qty, edhrecMap) {
+      const rec = edhrecMap.get(card.name.toLowerCase());
+      return {
+        name: card.name,
+        quantity: qty,
+        typeLine: getTypeLine(card),
+        colorIdentity: card.color_identity,
+        imageUrl: getCardImageUrl(card, 'small'),
+        edhrecRank: rec?.rank,
+        isRecommended: rec !== undefined,
+        inclusion: rec?.inclusion,
+      };
+    }
+  </script>
+</body>
+</html>
