@@ -1093,7 +1093,7 @@
       if (!ct.includes('application/json')) {
         const body = await res.text().catch(() => '(unreadable)');
         console.error('API not reachable:', res.status, res.statusText, '\nContent-Type:', ct, '\nBody:', body.slice(0, 500));
-        throw new Error('API server not reachable. Run the app locally with npm run dev and open http://localhost:3000');
+        throw new Error('API server not reachable.');
       }
       return res;
     }

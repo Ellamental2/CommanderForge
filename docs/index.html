@@ -1091,7 +1091,7 @@
       const res = await fetch(url, options);
       const ct = res.headers.get('content-type') || '';
       if (!ct.includes('application/json')) {
-        throw new Error('API server not reachable. Run the app locally with npm run dev and open http://localhost:3000');
+        throw new Error('API server not reachable.');
       }
       return res;
     }
