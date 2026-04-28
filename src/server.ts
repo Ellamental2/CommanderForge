@@ -68,7 +68,7 @@ app.post('/api/analyze', async (req: Request, res: Response): Promise<void> => {
     }
 
     // Merge valid pairs into combined entries; drop the individual entries they came from
-    const { pairs, pairedNames } = buildPairResults(scores);
+    const { pairs, pairedNames } = buildPairResults(scores, ownedCards);
     const soloScores = scores.filter(s => !pairedNames.has(s.name.toLowerCase()));
     const allResults = [...pairs, ...soloScores].sort((a, b) => b.matchPercent - a.matchPercent);
 

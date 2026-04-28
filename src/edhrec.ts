@@ -33,28 +33,49 @@ export async function fetchCommanderData(commanderName: string, partnerName?: st
     try {
       const pairRes = await fetch(pairUrl, { headers: { 'User-Agent': 'mtg-deck-builder/1.0' } });
       if (pairRes.ok) return parseEdhrecResponse(await pairRes.json());
-    } catch { /* fall through to individual commander */ }
+    } catch { /* fall through */ }
+
+    // No combined page — fetch both commanders individually and merge
+    const [primaryCards, partnerCards] = await Promise.all([
+      fetchSingleCommander(slug),
+      fetchSingleCommander(partnerSlug),
+    ]);
+    return mergeEdhrecResults(primaryCards, partnerCards);
   }
 
+  return fetchSingleCommander(slug);
+}
+
+async function fetchSingleCommander(slug: string): Promise<EdhrecCard[]> {
   const url = `${EDHREC_BASE}/pages/commanders/${slug}.json`;
-
   try {
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'mtg-deck-builder/1.0' },
-    });
-
+    const response = await fetch(url, { headers: { 'User-Agent': 'mtg-deck-builder/1.0' } });
     if (!response.ok) {
-      // Try the background (partner) variant path
-      const bgUrl = `${EDHREC_BASE}/pages/commanders/${slug}-background.json`;
-      const bgRes = await fetch(bgUrl, { headers: { 'User-Agent': 'mtg-deck-builder/1.0' } });
+      const bgRes = await fetch(`${url.replace('.json', '')}-background.json`, {
+        headers: { 'User-Agent': 'mtg-deck-builder/1.0' },
+      });
       if (!bgRes.ok) return [];
       return parseEdhrecResponse(await bgRes.json());
     }
-
     return parseEdhrecResponse(await response.json());
   } catch {
     return [];
   }
+}
+
+function mergeEdhrecResults(a: EdhrecCard[], b: EdhrecCard[]): EdhrecCard[] {
+  const merged = new Map<string, EdhrecCard>();
+  for (const card of [...a, ...b]) {
+    const key = card.name.toLowerCase();
+    const existing = merged.get(key);
+    if (!existing || card.inclusion > existing.inclusion) {
+      merged.set(key, card);
+    }
+  }
+  // Re-rank by inclusion descending, preserving game-changer status
+  return [...merged.values()]
+    .sort((x, y) => y.inclusion - x.inclusion)
+    .map((card, i) => ({ ...card, rank: i }));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

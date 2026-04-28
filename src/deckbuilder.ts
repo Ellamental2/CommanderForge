@@ -107,7 +107,7 @@ export function findPartnerCandidates(ownedCards: OwnedCard[]): Array<{
 
 const COLOR_ORDER = ['W', 'U', 'B', 'R', 'G'];
 
-export function buildPairResults(scores: CommanderResult[]): {
+export function buildPairResults(scores: CommanderResult[], ownedCards: OwnedCard[]): {
   pairs: CommanderResult[];
   pairedNames: Set<string>;
 } {
@@ -149,11 +149,19 @@ export function buildPairResults(scores: CommanderResult[]): {
       const combinedColors = [...new Set([...a.colorIdentity, ...b.colorIdentity])]
         .sort((x, y) => COLOR_ORDER.indexOf(x) - COLOR_ORDER.indexOf(y));
 
+      const pairValidCount = ownedCards.filter(
+        oc =>
+          oc.card.legalities?.commander === 'legal' &&
+          oc.card.name.toLowerCase() !== a.name.toLowerCase() &&
+          oc.card.name.toLowerCase() !== b.name.toLowerCase() &&
+          fitsColorIdentity(combinedColors, oc.card.color_identity)
+      ).length;
+
       pairs.push({
         name: a.name,
         colorIdentity: combinedColors,
         matchCount: Math.round((a.matchCount + b.matchCount) / 2),
-        validCardCount: Math.max(a.validCardCount, b.validCardCount),
+        validCardCount: pairValidCount,
         matchPercent: Math.round((a.matchPercent + b.matchPercent) / 2),
         edhrecUrl: a.edhrecUrl,
         imageUrl: a.imageUrl,
@@ -304,6 +312,23 @@ function buildBasicPool(ownedLands: OwnedCard[]): BasicPool {
   return pool;
 }
 
+function capBasicRatio(alloc: Record<string, number>, maxRatio: number): Record<string, number> {
+  const result = { ...alloc };
+  const colors = Object.keys(result);
+  if (colors.length <= 1) return result;
+  for (let iter = 0; iter < 200; iter++) {
+    let minVal = Infinity, maxVal = -Infinity, minColor = '', maxColor = '';
+    for (const c of colors) {
+      if (result[c] < minVal) { minVal = result[c]; minColor = c; }
+      if (result[c] > maxVal) { maxVal = result[c]; maxColor = c; }
+    }
+    if (maxVal <= maxRatio * minVal) break;
+    result[maxColor]--;
+    result[minColor]++;
+  }
+  return result;
+}
+
 function roundToIntegers(values: Record<string, number>, target: number): Record<string, number> {
   const entries = Object.entries(values).map(([k, v]) => ({ k, floor: Math.floor(v), frac: v % 1 }));
   const remainder = target - entries.reduce((s, e) => s + e.floor, 0);
@@ -347,7 +372,7 @@ function buildProportionalBasics(
 
   const rawAllocations: Record<string, number> = {};
   for (const c of colors) rawAllocations[c] = (counts[c] / weightTotal) * slotsAvailable;
-  const allocations = roundToIntegers(rawAllocations, slotsAvailable);
+  const allocations = capBasicRatio(roundToIntegers(rawAllocations, slotsAvailable), 2);
 
   const result: DeckCard[] = [];
   for (const color of colors) {
