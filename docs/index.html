@@ -1032,7 +1032,7 @@
         const body = { sessionId, commanderName: selectedCommander, gcLimit };
         if (selectedPartner) body.partnerName = selectedPartner;
         if (targetLands !== null) body.targetLands = targetLands;
-        const res = await fetch('/api/build-deck', {
+        const res = await apiFetch('/api/build-deck', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -1086,6 +1086,16 @@
       pendingCommanderData = null;
     });
 
+    // ── API fetch helper ───────────────────────────────────────────────────
+    async function apiFetch(url, options) {
+      const res = await fetch(url, options);
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('text/html')) {
+        throw new Error('API server not reachable. Run the app locally with npm run dev and open http://localhost:3000');
+      }
+      return res;
+    }
+
     // ── Analyse ────────────────────────────────────────────────────────────
     analyzeBtn.addEventListener('click', analyse);
 
@@ -1100,7 +1110,7 @@
       deckSection.style.display = 'none';
 
       try {
-        const res = await fetch('/api/analyze', {
+        const res = await apiFetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cardListContent: content }),
@@ -1336,7 +1346,7 @@
         const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
         const body = { sessionId, commanderName, gcLimit };
         if (targetLands !== null) body.targetLands = targetLands;
-        const res = await fetch('/api/build-deck', {
+        const res = await apiFetch('/api/build-deck', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -1359,7 +1369,7 @@
         const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
         const body = { sessionId, commanderName, partnerName, gcLimit };
         if (targetLands !== null) body.targetLands = targetLands;
-        const res = await fetch('/api/build-deck', {
+        const res = await apiFetch('/api/build-deck', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
