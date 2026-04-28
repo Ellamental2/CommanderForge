@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.fetchCardsBatch = fetchCardsBatch;
 exports.getCardImageUrl = getCardImageUrl;
+exports.getCardBackImageUrl = getCardBackImageUrl;
 const node_fetch_1 = __importDefault(require("node-fetch"));
 const SCRYFALL_BASE = 'https://api.scryfall.com';
 const BATCH_SIZE = 75;
@@ -68,5 +69,11 @@ function getCardImageUrl(card, size = 'normal') {
         return card.image_uris[size] ?? null;
     if (card.card_faces?.[0]?.image_uris)
         return card.card_faces[0].image_uris[size] ?? null;
+    return null;
+}
+/** Get the back face image URL for double-faced cards; null for single-faced cards */
+function getCardBackImageUrl(card, size = 'normal') {
+    if (card.card_faces?.[1]?.image_uris)
+        return card.card_faces[1].image_uris[size] ?? null;
     return null;
 }

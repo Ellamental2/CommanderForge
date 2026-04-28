@@ -83,10 +83,12 @@ app.post('/api/analyze', async (req: Request, res: Response): Promise<void> => {
 // Build a 100-card deck for the selected commander.
 
 app.post('/api/build-deck', async (req: Request, res: Response): Promise<void> => {
-  const { sessionId, commanderName, partnerName } = req.body as {
+  const { sessionId, commanderName, partnerName, gcLimit, targetLands } = req.body as {
     sessionId?: string;
     commanderName?: string;
     partnerName?: string;
+    gcLimit?: 'unlimited' | 'max3' | 'none';
+    targetLands?: number;
   };
 
   if (!sessionId || !commanderName) {
@@ -126,7 +128,11 @@ app.post('/api/build-deck', async (req: Request, res: Response): Promise<void> =
   try {
     const label = partnerName ? `${commanderName} + ${partnerName}` : commanderName;
     console.log(`Building deck for ${label}…`);
-    const deck = await buildDeck(commanderOwned.card, ownedCards, partnerOwned?.card);
+    const deck = await buildDeck(
+      commanderOwned.card, ownedCards, partnerOwned?.card,
+      gcLimit ?? 'unlimited',
+      typeof targetLands === 'number' ? targetLands : undefined
+    );
     res.json(deck);
   } catch (err) {
     console.error('/api/build-deck error:', err);

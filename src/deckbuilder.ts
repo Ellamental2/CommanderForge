@@ -175,7 +175,7 @@ function isNonLandManaSource(card: ScryfallCard): boolean {
   return !getTypeLine(card).includes('Land') && MANA_SOURCE_RE.test(getOracleText(card));
 }
 
-const BASE_LANDS = 38;
+const BASE_LANDS = 39;
 
 function calculateTargetLands(commanders: ScryfallCard[], ownedNonLands: OwnedCard[]): number {
   const sample = ownedNonLands.slice(0, 61);
@@ -190,9 +190,9 @@ function calculateTargetLands(commanders: ScryfallCard[], ownedNonLands: OwnedCa
     target += Math.min(Math.floor(landCaringCount / 3), 4);
   }
 
-  target -= Math.floor(manaSourceCount / 2);
+  target -= Math.floor(manaSourceCount / 3);
 
-  return Math.max(30, Math.min(45, target));
+  return Math.max(35, Math.min(100-commanders.length, target));
 }
 
 // ── Basic land distribution ────────────────────────────────────────────────
@@ -297,11 +297,14 @@ export function categoriseCard(typeLine: string): string {
  * Build the best possible 100-card Commander deck from the owned cards.
  * Prioritises cards that appear on EDHRec's recommendation list by inclusion %.
  * Basic lands are allowed in multiples; everything else is singleton.
+ * Cards banned in Commander (legalities.commander !== 'legal' per Scryfall) are excluded.
  */
 export async function buildDeck(
   commander: ScryfallCard,
   allOwned: OwnedCard[],
-  partner?: ScryfallCard
+  partner?: ScryfallCard,
+  gcLimit: 'unlimited' | 'max3' | 'none' = 'unlimited',
+  targetLandsOverride?: number
 ): Promise<DeckResponse> {
   const deckSize = partner ? 98 : 99;
   const combinedColors = partner
@@ -313,7 +316,8 @@ export async function buildDeck(
     edhrecCards.map(c => [c.name.toLowerCase(), c])
   );
 
-  // Filter to Commander-legal cards that fit the combined colour identity, excluding commanders
+  // Exclude cards banned in Commander (Scryfall sets legalities.commander = 'banned' for these)
+  // and cards outside the combined colour identity or already in the command zone.
   const validOwned = allOwned.filter(
     oc =>
       oc.card.legalities?.commander === 'legal' &&
@@ -334,19 +338,27 @@ export async function buildDeck(
   const ownedLands = validOwned.filter(oc => getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
   const ownedNonLands = validOwned.filter(oc => !getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
 
-  const targetLands = calculateTargetLands([commander, ...(partner ? [partner] : [])], ownedNonLands);
+  const targetLands = targetLandsOverride !== undefined
+    ? Math.max(0, Math.min(deckSize, targetLandsOverride))
+    : calculateTargetLands([commander, ...(partner ? [partner] : [])], ownedNonLands);
   const nonLandSlots = deckSize - targetLands;
 
   const deckCards: DeckCard[] = [];
   const usedNames = new Set<string>();
+  const gcMax = gcLimit === 'none' ? 0 : gcLimit === 'max3' ? 3 : Infinity;
+  let gcCount = 0;
 
   // Phase 1: fill non-land slots with best non-land cards
   for (const oc of ownedNonLands) {
     if (deckCards.length >= nonLandSlots) break;
     const nameLower = oc.card.name.toLowerCase();
     if (usedNames.has(nameLower)) continue;
+    const rec = edhrecMap.get(nameLower);
+    if (rec?.isGameChanger && gcCount >= gcMax) continue;
     usedNames.add(nameLower);
-    deckCards.push(makeDeckCard(oc.card, 1, edhrecMap));
+    const dc = makeDeckCard(oc.card, 1, edhrecMap);
+    deckCards.push(dc);
+    if (dc.isGameChanger) gcCount++;
   }
 
   // Snapshot non-land cards for color proportion calculation
@@ -398,6 +410,8 @@ export async function buildDeck(
     cards: deckCards,
     totalCards: (partner ? 2 : 1) + cardCount,
     slotsRemaining: deckSize - cardCount,
+    targetLands,
+    deckSize,
   };
 }
 

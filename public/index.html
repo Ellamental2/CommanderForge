@@ -98,7 +98,7 @@
       margin-top: 10px;
       color: var(--text-dim);
       font-style: italic;
-      font-size: 15px;
+      font-size: 17px;
     }
 
     /* ── Upload Section ───────────────────────────────────────────────── */
@@ -582,11 +582,19 @@
     }
 
     .deck-card-name.recommended { color: #a0d4ac; }
+    .deck-card-name.game-changer { color: #ffd27a; font-weight: 600; }
 
     .rec-dot {
       width: 5px; height: 5px;
       border-radius: 50%;
       background: #6dba7d;
+      flex-shrink: 0;
+    }
+
+    .game-changer-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: #e8a020;
       flex-shrink: 0;
     }
 
@@ -631,6 +639,119 @@
       display: none;
     }
 
+    /* ── Game changer radio group ─────────────────────────────────────── */
+    .gc-options {
+      margin-top: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .gc-label {
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--gold-dim);
+      margin-right: 4px;
+    }
+
+    .gc-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-family: 'Cinzel', serif;
+      font-size: 12px;
+      letter-spacing: 1px;
+      color: var(--text);
+      background: var(--surface2);
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+      user-select: none;
+    }
+
+    .gc-option input[type="radio"] { display: none; }
+
+    .gc-pip {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      border: 2px solid var(--text-dim);
+      flex-shrink: 0;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .gc-option.active {
+      border-color: var(--gold-dim);
+      color: var(--gold);
+      background: var(--gold-glow);
+    }
+
+    .gc-option.active .gc-pip {
+      border-color: var(--gold);
+      background: var(--gold);
+    }
+
+    .gc-option:hover:not(.active) {
+      border-color: var(--text-dim);
+    }
+
+    /* ── Land count slider ────────────────────────────────────────────── */
+    .land-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .land-slider-val {
+      color: var(--gold);
+      font-size: 15px;
+      letter-spacing: 0;
+      min-width: 20px;
+      display: inline-block;
+    }
+
+    .land-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 130px;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .land-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--gold);
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(201,168,76,0.45);
+    }
+
+    .land-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--gold);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 6px rgba(201,168,76,0.45);
+    }
+
     /* ── Legend ───────────────────────────────────────────────────────── */
     .legend {
       margin-top: 20px;
@@ -667,6 +788,21 @@
           spellcheck="false"
         ></textarea>
       </div>
+      <div class="gc-options">
+        <span class="gc-label">Game Changers</span>
+        <label class="gc-option active">
+          <input type="radio" name="gcLimit" value="unlimited" checked />
+          <span class="gc-pip"></span>No limit
+        </label>
+        <label class="gc-option">
+          <input type="radio" name="gcLimit" value="max3" />
+          <span class="gc-pip"></span>Max 3
+        </label>
+        <label class="gc-option">
+          <input type="radio" name="gcLimit" value="none" />
+          <span class="gc-pip"></span>None
+        </label>
+      </div>
       <div class="actions">
         <button class="btn btn-primary" id="analyzeBtn" disabled>Analyse Collection</button>
         <button class="btn btn-ghost" id="clearBtn">Clear</button>
@@ -696,14 +832,20 @@
             <span class="deck-stat" id="deckSlotsStat"></span>
           </div>
           <div id="slotsWarning" class="slots-warning" style="display:none;"></div>
+          <div class="land-slider-row">
+            Lands: <span class="land-slider-val" id="landSliderVal">38</span>
+            <input type="range" class="land-slider" id="landSlider" min="0" max="99" value="38" />
+          </div>
         </div>
       </div>
       <div class="deck-categories" id="deckCategories"></div>
       <div class="deck-footer">
         <div class="legend">
-          <span class="legend-item"><span class="rec-dot"></span> EDHRec recommended</span>
+          <span class="legend-item"><span class="game-changer-dot"></span> EDHRec game changer</span>
+          <span class="legend-item"><span class="rec-dot"></span> On EDHRec's list for this commander</span>
+          <span class="legend-item"><span style="width:5px;display:inline-block"></span> In your collection, fits color identity</span>
         </div>
-        <button class="btn btn-ghost" id="exportBtn" onclick="exportToMoxfield()">Export to .txt</button>
+        <button class="btn btn-ghost" id="exportBtn" onclick="exportToMoxfield()">Export as .txt</button>
       </div>
     </section>
   </div>
@@ -719,11 +861,13 @@
     // ── State ──────────────────────────────────────────────────────────────
     let sessionId = null;
     let selectedCommander = null;
+    let selectedPartner = null;
     let currentDeck = null;
     const cardImages = {};   // name → imageUrl cache
     let allCommandersData = [];
     let partnerCandidates = [];
     let pendingCommanderData = null;
+    let targetLands = null;  // null = let server auto-calculate
 
     // ── DOM refs ───────────────────────────────────────────────────────────
     const fileInput      = document.getElementById('fileInput');
@@ -761,6 +905,56 @@
       }
     });
 
+    // ── Game changer limit — active class + rebuild deck on change ─────────
+    document.querySelectorAll('input[name="gcLimit"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        document.querySelectorAll('.gc-option').forEach(l => l.classList.remove('active'));
+        radio.closest('.gc-option').classList.add('active');
+        if (selectedCommander && sessionId && !pendingCommanderData) {
+          const cardEl = document.querySelector('.commander-card.selected');
+          const cmdData = allCommandersData.find(d => d.name === selectedCommander);
+          if (cardEl && cmdData) selectCommander(cardEl, cmdData);
+        }
+      });
+    });
+
+    // ── Land slider ───────────────────────────────────────────────────────
+    const landSlider    = document.getElementById('landSlider');
+    const landSliderVal = document.getElementById('landSliderVal');
+
+    landSlider.addEventListener('input', () => {
+      landSliderVal.textContent = landSlider.value;
+    });
+
+    landSlider.addEventListener('change', () => {
+      targetLands = parseInt(landSlider.value, 10);
+      if (selectedCommander && sessionId) rebuildCurrentDeck();
+    });
+
+    async function rebuildCurrentDeck() {
+      if (!selectedCommander || !sessionId) return;
+      deckSection.style.display = 'none';
+      setStatus('<span class="spinner"></span>Rebuilding deck…');
+      try {
+        const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
+        const body = { sessionId, commanderName: selectedCommander, gcLimit };
+        if (selectedPartner) body.partnerName = selectedPartner;
+        if (targetLands !== null) body.targetLands = targetLands;
+        const res = await fetch('/api/build-deck', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error); setStatus(''); return; }
+        renderDeck(data);
+        setStatus(`Deck built — ${data.totalCards}/100 cards`);
+      } catch (e) {
+        showError('Network error: ' + e.message);
+        setStatus('');
+      }
+    }
+
     // ── File load ──────────────────────────────────────────────────────────
     fileInput.addEventListener('change', () => {
       const file = fileInput.files[0];
@@ -792,6 +986,9 @@
       hideError();
       checkReady();
       sessionId = null;
+      selectedCommander = null;
+      selectedPartner = null;
+      targetLands = null;
       allCommandersData = [];
       partnerCandidates = [];
       pendingCommanderData = null;
@@ -993,6 +1190,8 @@
         clearPartnerSelection();
       }
 
+      // Reset land target when switching to a different commander
+      if (name !== selectedCommander) targetLands = null;
       selectedCommander = name;
       document.querySelectorAll('.commander-card').forEach(c => c.classList.remove('selected'));
       cardEl.classList.add('selected');
@@ -1005,13 +1204,17 @@
     }
 
     async function buildDeckSingle(commanderName) {
+      selectedPartner = null;
       deckSection.style.display = 'none';
       setStatus('<span class="spinner"></span>Building deck…');
       try {
+        const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
+        const body = { sessionId, commanderName, gcLimit };
+        if (targetLands !== null) body.targetLands = targetLands;
         const res = await fetch('/api/build-deck', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId, commanderName }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) { showError(data.error); setStatus(''); return; }
@@ -1024,13 +1227,17 @@
     }
 
     async function buildDeckWithPair(commanderName, partnerName) {
+      selectedPartner = partnerName;
       deckSection.style.display = 'none';
       setStatus('<span class="spinner"></span>Building deck…');
       try {
+        const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
+        const body = { sessionId, commanderName, partnerName, gcLimit };
+        if (targetLands !== null) body.targetLands = targetLands;
         const res = await fetch('/api/build-deck', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId, commanderName, partnerName }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) { showError(data.error); setStatus(''); return; }
@@ -1067,6 +1274,17 @@
     // ── Render deck ────────────────────────────────────────────────────────
     function renderDeck(deck) {
       currentDeck = deck;
+
+      // Sync land slider: max = deck slots (99 or 98), value = server-calculated target
+      landSlider.max = deck.deckSize;
+      if (targetLands === null) {
+        landSlider.value = deck.targetLands;
+        landSliderVal.textContent = deck.targetLands;
+      } else {
+        landSlider.value = targetLands;
+        landSliderVal.textContent = targetLands;
+      }
+
       // Header
       const imgEl = document.getElementById('deckCommanderImg');
       imgEl.src = deck.commander.imageUrl || '';
@@ -1123,10 +1341,16 @@
         for (const c of groups[cat]) {
           const row = document.createElement('div');
           row.className = 'deck-card-row';
+          const dotHtml = c.isGameChanger
+            ? '<span class="game-changer-dot" title="EDHRec game changer"></span>'
+            : c.isRecommended
+              ? '<span class="rec-dot" title="EDHRec recommended"></span>'
+              : '<span style="width:5px"></span>';
+          const nameClass = c.isGameChanger ? 'game-changer' : c.isRecommended ? 'recommended' : '';
           row.innerHTML = `
             <span class="deck-card-qty">${c.quantity > 1 ? c.quantity : ''}</span>
-            ${c.isRecommended ? '<span class="rec-dot" title="EDHRec recommended"></span>' : '<span style="width:5px"></span>'}
-            <span class="deck-card-name ${c.isRecommended ? 'recommended' : ''}">${escHtml(c.name)}</span>`;
+            ${dotHtml}
+            <span class="deck-card-name ${nameClass}">${escHtml(c.name)}</span>`;
 
           if (c.imageUrl) {
             row.addEventListener('mouseenter', e => showCardPreview(c.imageUrl, c.imageUrlBack, null, e));

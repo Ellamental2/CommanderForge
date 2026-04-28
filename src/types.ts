@@ -93,4 +93,6 @@ export interface DeckResponse {
   cards: DeckCard[];
   totalCards: number;
   slotsRemaining: number;
+  targetLands: number;
+  deckSize: number;
 }

@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getPartnerType = getPartnerType;
 exports.getPartnerWithName = getPartnerWithName;
 exports.isLegalCommander = isLegalCommander;
+exports.isValidPartnerPair = isValidPartnerPair;
+exports.findPartnerCandidates = findPartnerCandidates;
 exports.scoreCommander = scoreCommander;
 exports.categoriseCard = categoriseCard;
 exports.buildDeck = buildDeck;
@@ -43,10 +45,62 @@ function isLegalCommander(card) {
         return false;
     const typeLine = getTypeLine(card);
     const oracleText = getOracleText(card);
-    return ((typeLine.includes('Legendary') && typeLine.includes('Creature')) ||
-        oracleText.includes('can be your commander') ||
-        // Background enchantments can be in the command zone alongside a "Choose a Background" commander
-        (typeLine.includes('Legendary') && typeLine.includes('Background')));
+    // Backgrounds are only valid paired with a "Choose a Background" commander, not standalone
+    if (typeLine.includes('Background'))
+        return false;
+    if (typeLine.includes('Legendary') && typeLine.includes('Creature'))
+        return true;
+    if (oracleText.includes('can be your commander'))
+        return true;
+    // Legendary planeswalkers with generic Partner or Friends Forever can lead a paired command zone
+    const partnerType = getPartnerType(card);
+    if (typeLine.includes('Legendary') &&
+        typeLine.includes('Planeswalker') &&
+        (partnerType === 'partner' || partnerType === 'friends-forever'))
+        return true;
+    return false;
+}
+function isValidPartnerPair(a, b) {
+    const aType = getPartnerType(a);
+    const bType = getPartnerType(b);
+    if (aType === 'partner' && bType === 'partner')
+        return true;
+    if (aType === 'friends-forever' && bType === 'friends-forever')
+        return true;
+    if (aType === 'partner-with' && getPartnerWithName(a)?.toLowerCase() === b.name.toLowerCase())
+        return true;
+    if (bType === 'partner-with' && getPartnerWithName(b)?.toLowerCase() === a.name.toLowerCase())
+        return true;
+    if (aType === 'chooses-background' && bType === 'background')
+        return true;
+    if (aType === 'background' && bType === 'chooses-background')
+        return true;
+    return false;
+}
+function findPartnerCandidates(ownedCards) {
+    const seen = new Set();
+    const results = [];
+    for (const oc of ownedCards) {
+        if (oc.card.legalities?.commander !== 'legal')
+            continue;
+        const typeLine = getTypeLine(oc.card);
+        if (!typeLine.includes('Legendary') || !typeLine.includes('Background'))
+            continue;
+        const key = oc.card.name.toLowerCase();
+        if (seen.has(key))
+            continue;
+        seen.add(key);
+        results.push({
+            name: oc.card.name,
+            imageUrl: (0, scryfall_1.getCardImageUrl)(oc.card, 'normal'),
+            imageUrlBack: (0, scryfall_1.getCardBackImageUrl)(oc.card, 'normal'),
+            oracleText: getOracleText(oc.card),
+            colorIdentity: oc.card.color_identity,
+            typeLine,
+            partnerType: getPartnerType(oc.card),
+        });
+    }
+    return results;
 }
 // ── Color identity check ───────────────────────────────────────────────────
 /**
@@ -76,6 +130,7 @@ async function scoreCommander(commander, allOwned) {
         matchPercent,
         edhrecUrl: (0, edhrec_1.edhrecCommanderUrl)(commander.name),
         imageUrl: (0, scryfall_1.getCardImageUrl)(commander, 'normal'),
+        imageUrlBack: (0, scryfall_1.getCardBackImageUrl)(commander, 'normal'),
         oracleText: getOracleText(commander),
         partnerType: getPartnerType(commander),
         partnerWith: getPartnerWithName(commander),
@@ -99,7 +154,7 @@ function caresAboutLands(card) {
 function isNonLandManaSource(card) {
     return !getTypeLine(card).includes('Land') && MANA_SOURCE_RE.test(getOracleText(card));
 }
-const BASE_LANDS = 38;
+const BASE_LANDS = 39;
 function calculateTargetLands(commanders, ownedNonLands) {
     const sample = ownedNonLands.slice(0, 61);
     const landCaringCount = sample.filter(oc => caresAboutLands(oc.card)).length;
@@ -111,8 +166,8 @@ function calculateTargetLands(commanders, ownedNonLands) {
     else if (landCaringCount >= 5) {
         target += Math.min(Math.floor(landCaringCount / 3), 4);
     }
-    target -= Math.floor(manaSourceCount / 2);
-    return Math.max(30, Math.min(45, target));
+    target -= Math.floor(manaSourceCount / 3);
+    return Math.max(35, Math.min(100 - commanders.length, target));
 }
 // ── Basic land distribution ────────────────────────────────────────────────
 const MANA_COLORS = new Set(['W', 'U', 'B', 'R', 'G']);
@@ -214,15 +269,17 @@ function categoriseCard(typeLine) {
  * Build the best possible 100-card Commander deck from the owned cards.
  * Prioritises cards that appear on EDHRec's recommendation list by inclusion %.
  * Basic lands are allowed in multiples; everything else is singleton.
+ * Cards banned in Commander (legalities.commander !== 'legal' per Scryfall) are excluded.
  */
-async function buildDeck(commander, allOwned, partner) {
+async function buildDeck(commander, allOwned, partner, gcLimit = 'unlimited', targetLandsOverride) {
     const deckSize = partner ? 98 : 99;
     const combinedColors = partner
         ? [...new Set([...commander.color_identity, ...partner.color_identity])]
         : commander.color_identity;
     const edhrecCards = await (0, edhrec_1.fetchCommanderData)(commander.name, partner?.name);
     const edhrecMap = new Map(edhrecCards.map(c => [c.name.toLowerCase(), c]));
-    // Filter to Commander-legal cards that fit the combined colour identity, excluding commanders
+    // Exclude cards banned in Commander (Scryfall sets legalities.commander = 'banned' for these)
+    // and cards outside the combined colour identity or already in the command zone.
     const validOwned = allOwned.filter(oc => oc.card.legalities?.commander === 'legal' &&
         oc.card.id !== commander.id &&
         (!partner || oc.card.id !== partner.id) &&
@@ -240,10 +297,14 @@ async function buildDeck(commander, allOwned, partner) {
     };
     const ownedLands = validOwned.filter(oc => getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
     const ownedNonLands = validOwned.filter(oc => !getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
-    const targetLands = calculateTargetLands([commander, ...(partner ? [partner] : [])], ownedNonLands);
+    const targetLands = targetLandsOverride !== undefined
+        ? Math.max(0, Math.min(deckSize, targetLandsOverride))
+        : calculateTargetLands([commander, ...(partner ? [partner] : [])], ownedNonLands);
     const nonLandSlots = deckSize - targetLands;
     const deckCards = [];
     const usedNames = new Set();
+    const gcMax = gcLimit === 'none' ? 0 : gcLimit === 'max3' ? 3 : Infinity;
+    let gcCount = 0;
     // Phase 1: fill non-land slots with best non-land cards
     for (const oc of ownedNonLands) {
         if (deckCards.length >= nonLandSlots)
@@ -251,8 +312,14 @@ async function buildDeck(commander, allOwned, partner) {
         const nameLower = oc.card.name.toLowerCase();
         if (usedNames.has(nameLower))
             continue;
+        const rec = edhrecMap.get(nameLower);
+        if (rec?.isGameChanger && gcCount >= gcMax)
+            continue;
         usedNames.add(nameLower);
-        deckCards.push(makeDeckCard(oc.card, 1, edhrecMap));
+        const dc = makeDeckCard(oc.card, 1, edhrecMap);
+        deckCards.push(dc);
+        if (dc.isGameChanger)
+            gcCount++;
     }
     // Snapshot non-land cards for color proportion calculation
     const selectedNonLands = [...deckCards];
@@ -282,18 +349,22 @@ async function buildDeck(commander, allOwned, partner) {
         commander: {
             name: commander.name,
             imageUrl: (0, scryfall_1.getCardImageUrl)(commander, 'normal'),
+            imageUrlBack: (0, scryfall_1.getCardBackImageUrl)(commander, 'normal'),
             colorIdentity: commander.color_identity,
             oracleText: getOracleText(commander),
         },
         partner: partner ? {
             name: partner.name,
             imageUrl: (0, scryfall_1.getCardImageUrl)(partner, 'normal'),
+            imageUrlBack: (0, scryfall_1.getCardBackImageUrl)(partner, 'normal'),
             colorIdentity: partner.color_identity,
             oracleText: getOracleText(partner),
         } : undefined,
         cards: deckCards,
         totalCards: (partner ? 2 : 1) + cardCount,
         slotsRemaining: deckSize - cardCount,
+        targetLands,
+        deckSize,
     };
 }
 function makeDeckCard(card, qty, edhrecMap) {
@@ -304,6 +375,7 @@ function makeDeckCard(card, qty, edhrecMap) {
         typeLine: getTypeLine(card),
         colorIdentity: card.color_identity,
         imageUrl: (0, scryfall_1.getCardImageUrl)(card, 'small'),
+        imageUrlBack: (0, scryfall_1.getCardBackImageUrl)(card, 'small'),
         edhrecRank: rec?.rank,
         isRecommended: rec !== undefined,
         isGameChanger: rec?.isGameChanger ?? false,
