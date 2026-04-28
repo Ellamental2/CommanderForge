@@ -7,7 +7,7 @@ import { OwnedCard } from './types';
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, '..')));
 
 // ── Simple in-memory session store ─────────────────────────────────────────
 // Stores fetched Scryfall data so the build-deck endpoint doesn't re-fetch.

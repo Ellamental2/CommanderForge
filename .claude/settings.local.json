@@ -11,7 +11,9 @@
       "Bash(git -C \"d:/Downloads/mtg-deck-builder/mtg-deck-builder\" add docs/index.html)",
       "Bash(git -C \"d:/Downloads/mtg-deck-builder/mtg-deck-builder\" add cloudflare-worker/worker.js)",
       "Bash(npx tsc *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(head -n 931 docs/index.html)",
+      "Bash(tail -n 3 docs/index.html)"
     ]
   }
 }
