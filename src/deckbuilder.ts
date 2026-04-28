@@ -1,6 +1,6 @@
 import { OwnedCard, ScryfallCard, EdhrecCard, CommanderResult, DeckResponse, DeckCard } from './types';
 import { fetchCommanderData, edhrecCommanderUrl } from './edhrec';
-import { getCardImageUrl, getCardBackImageUrl } from './scryfall';
+import { getCardImageUrl, getCardBackImageUrl, fetchBasicLands } from './scryfall';
 
 // ── Commander detection ────────────────────────────────────────────────────
 
@@ -21,7 +21,9 @@ export function getPartnerType(card: ScryfallCard): import('./types').PartnerTyp
   if (/\bChoose a Background\b/i.test(oracle)) return 'chooses-background';
   if (typeLine.includes('Legendary') && typeLine.includes('Background')) return 'background';
   if (/\bPartner with\b/i.test(oracle)) return 'partner-with';
+  if (/\bDoctor's Companion\b/i.test(oracle)) return 'doctors-companion';
   if (/\bPartner\b(?! with)/i.test(oracle)) return 'partner';
+  if (typeLine.includes('Legendary') && typeLine.includes('Creature') && /\bDoctor\b/.test(typeLine)) return 'doctor';
   return null;
 }
 
@@ -41,6 +43,7 @@ export function isLegalCommander(card: ScryfallCard): boolean {
 
   if (typeLine.includes('Legendary') && typeLine.includes('Creature')) return true;
   if (oracleText.includes('can be your commander')) return true;
+  if (getPartnerType(card) === 'doctors-companion') return true;
 
   // Legendary planeswalkers with generic Partner or Friends Forever can lead a paired command zone
   const partnerType = getPartnerType(card);
@@ -63,6 +66,8 @@ export function isValidPartnerPair(a: ScryfallCard, b: ScryfallCard): boolean {
   if (bType === 'partner-with' && getPartnerWithName(b)?.toLowerCase() === a.name.toLowerCase()) return true;
   if (aType === 'chooses-background' && bType === 'background') return true;
   if (aType === 'background' && bType === 'chooses-background') return true;
+  if (aType === 'doctors-companion' && bType === 'doctor') return true;
+  if (aType === 'doctor' && bType === 'doctors-companion') return true;
 
   return false;
 }
@@ -96,6 +101,78 @@ export function findPartnerCandidates(ownedCards: OwnedCard[]): Array<{
     });
   }
   return results;
+}
+
+// ── Partner pair merging ───────────────────────────────────────────────────
+
+const COLOR_ORDER = ['W', 'U', 'B', 'R', 'G'];
+
+export function buildPairResults(scores: CommanderResult[]): {
+  pairs: CommanderResult[];
+  pairedNames: Set<string>;
+} {
+  const pairs: CommanderResult[] = [];
+  const pairedNames = new Set<string>();
+  const seen = new Set<string>();
+
+  // Deduplicate scores by name first so multiple printings don't produce phantom entries
+  const deduped: CommanderResult[] = [];
+  const dedupSeen = new Set<string>();
+  for (const s of scores) {
+    const k = s.name.toLowerCase();
+    if (!dedupSeen.has(k)) { dedupSeen.add(k); deduped.push(s); }
+  }
+
+  for (let i = 0; i < deduped.length; i++) {
+    for (let j = i + 1; j < deduped.length; j++) {
+      const a = deduped[i];
+      const b = deduped[j];
+
+      if (a.name === b.name) continue;
+
+      const compatible =
+        (a.partnerType === 'partner' && b.partnerType === 'partner') ||
+        (a.partnerType === 'friends-forever' && b.partnerType === 'friends-forever') ||
+        (a.partnerType === 'partner-with' && a.partnerWith?.toLowerCase() === b.name.toLowerCase()) ||
+        (b.partnerType === 'partner-with' && b.partnerWith?.toLowerCase() === a.name.toLowerCase()) ||
+        (a.partnerType === 'doctor' && b.partnerType === 'doctors-companion') ||
+        (a.partnerType === 'doctors-companion' && b.partnerType === 'doctor');
+
+      if (!compatible) continue;
+
+      const key = [a.name, b.name].sort().join('\0');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pairedNames.add(a.name.toLowerCase());
+      pairedNames.add(b.name.toLowerCase());
+
+      const combinedColors = [...new Set([...a.colorIdentity, ...b.colorIdentity])]
+        .sort((x, y) => COLOR_ORDER.indexOf(x) - COLOR_ORDER.indexOf(y));
+
+      pairs.push({
+        name: a.name,
+        colorIdentity: combinedColors,
+        matchCount: Math.round((a.matchCount + b.matchCount) / 2),
+        validCardCount: Math.max(a.validCardCount, b.validCardCount),
+        matchPercent: Math.round((a.matchPercent + b.matchPercent) / 2),
+        edhrecUrl: a.edhrecUrl,
+        imageUrl: a.imageUrl,
+        imageUrlBack: a.imageUrlBack,
+        oracleText: a.oracleText,
+        partnerType: a.partnerType,
+        partnerWith: a.partnerWith,
+        partner: {
+          name: b.name,
+          imageUrl: b.imageUrl,
+          imageUrlBack: b.imageUrlBack,
+          oracleText: b.oracleText,
+          colorIdentity: b.colorIdentity,
+        },
+      });
+    }
+  }
+
+  return { pairs, pairedNames };
 }
 
 // ── Color identity check ───────────────────────────────────────────────────
@@ -209,6 +286,8 @@ const COLOR_BASICS: Record<string, string[]> = {
 
 type BasicPool = Map<string, { card: ScryfallCard; qty: number }>;
 
+const STANDARD_BASIC_NAMES = new Set(['plains', 'island', 'swamp', 'mountain', 'forest']);
+
 function buildBasicPool(ownedLands: OwnedCard[]): BasicPool {
   const pool: BasicPool = new Map();
   for (const oc of ownedLands) {
@@ -217,6 +296,10 @@ function buildBasicPool(ownedLands: OwnedCard[]): BasicPool {
     const entry = pool.get(key);
     if (entry) entry.qty += oc.quantity;
     else pool.set(key, { card: oc.card, qty: oc.quantity });
+  }
+  // The 5 standard basics are assumed unlimited regardless of listed quantity
+  for (const [key, entry] of pool) {
+    if (STANDARD_BASIC_NAMES.has(key)) entry.qty = 99;
   }
   return pool;
 }
@@ -337,6 +420,20 @@ export async function buildDeck(
 
   const ownedLands = validOwned.filter(oc => getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
   const ownedNonLands = validOwned.filter(oc => !getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
+
+  // Inject any standard basic types not in the user's collection so they're always available
+  const fetchedBasics = await fetchBasicLands();
+  const ownedBasicNames = new Set(
+    ownedLands.filter(oc => isBasicLand(oc.card)).map(oc => oc.card.name.toLowerCase())
+  );
+  for (const basic of fetchedBasics) {
+    if (
+      !ownedBasicNames.has(basic.card.name.toLowerCase()) &&
+      fitsColorIdentity(combinedColors, basic.card.color_identity)
+    ) {
+      ownedLands.push({ ...basic });
+    }
+  }
 
   const targetLands = targetLandsOverride !== undefined
     ? Math.max(0, Math.min(deckSize, targetLandsOverride))

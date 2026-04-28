@@ -301,7 +301,9 @@
       box-shadow: 0 0 0 2px var(--gold), 0 8px 32px rgba(201,168,76,0.2);
     }
 
-    .commander-card.partner-eligible { border-color: var(--gold); }
+    .commander-card.partner-eligible {
+      border-color: var(--gold);
+    }
 
     .commander-card.partner-ineligible {
       opacity: 0.35;
@@ -347,7 +349,6 @@
     }
 
     .background-card:hover { border-color: var(--gold); }
-
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(16px); }
@@ -606,8 +607,14 @@
       width: 220px;
     }
 
-    .card-preview img {
-      width: 220px;
+    .card-preview-imgs {
+      display: flex;
+      gap: 8px;
+    }
+
+    .card-preview-imgs img {
+      flex: 1;
+      min-width: 0;
       border-radius: 10px 10px 0 0;
       box-shadow: 0 12px 40px rgba(0,0,0,0.8);
       display: block;
@@ -698,18 +705,6 @@
       border-color: var(--text-dim);
     }
 
-    /* ── Legend ───────────────────────────────────────────────────────── */
-    .legend {
-      margin-top: 20px;
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      font-size: 13px;
-      color: var(--text-dim);
-    }
-
-    .legend-item { display: flex; align-items: center; gap: 6px; }
-
     /* ── Land count slider ────────────────────────────────────────────── */
     .land-slider-row {
       display: flex;
@@ -762,6 +757,64 @@
       border: none;
       box-shadow: 0 0 6px rgba(201,168,76,0.45);
     }
+
+    /* ── Partner pair card art ───────────────────────────────────────── */
+    .card-art-pair .art-half {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 58%;
+      overflow: hidden;
+    }
+
+    .card-art-pair .art-half img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      display: block;
+    }
+
+    .card-art-pair .art-left {
+      left: 0;
+      z-index: 1;
+    }
+
+    .card-art-pair .art-left::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 24px;
+      background: linear-gradient(to right, transparent, rgba(0,0,0,0.45));
+      pointer-events: none;
+    }
+
+    .card-art-pair .art-right {
+      right: 0;
+    }
+
+    .pair-name {
+      font-size: 11.5px !important;
+      line-height: 1.35;
+    }
+
+    .pair-amp {
+      color: var(--gold-dim);
+      font-size: 10px;
+      display: block;
+      margin: 1px 0;
+    }
+
+    /* ── Legend ───────────────────────────────────────────────────────── */
+    .legend {
+      margin-top: 20px;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .legend-item { display: flex; align-items: center; gap: 6px; }
   </style>
 </head>
 <body>
@@ -802,6 +855,21 @@
           <span class="gc-pip"></span>None
         </label>
       </div>
+      <div class="gc-options" style="margin-top:10px;">
+        <span class="gc-label">Collection Fill</span>
+        <label class="gc-option fill-option">
+          <input type="radio" name="deckFill" value="all" />
+          <span class="gc-pip"></span>All commanders
+        </label>
+        <label class="gc-option fill-option">
+          <input type="radio" name="deckFill" value="partial" />
+          <span class="gc-pip"></span>80+ cards
+        </label>
+        <label class="gc-option fill-option active">
+          <input type="radio" name="deckFill" value="full" checked />
+          <span class="gc-pip"></span>Full deck
+        </label>
+      </div>
       <div class="actions">
         <button class="btn btn-primary" id="analyzeBtn" disabled>Analyse Collection</button>
         <button class="btn btn-ghost" id="clearBtn">Clear</button>
@@ -823,6 +891,7 @@
     <section class="deck-section" id="deckSection" style="display:none;">
       <div class="deck-header">
         <img class="deck-commander-img" id="deckCommanderImg" src="" alt="" />
+        <img class="deck-commander-img" id="deckCommanderImg2" src="" alt="" style="display:none;" />
         <div class="deck-commander-info">
           <h2 id="deckCommanderName"></h2>
           <div class="pips" id="deckCommanderPips"></div>
@@ -851,46 +920,50 @@
 
   <!-- Card image preview tooltip -->
   <div class="card-preview" id="cardPreview">
-    <img id="cardPreviewImg" src="" alt="" />
+    <div class="card-preview-imgs">
+      <img id="cardPreviewImg" src="" alt="" />
+      <img id="cardPreviewImg2" src="" alt="" style="display:none;" />
+    </div>
     <div class="card-preview-flip-hint" id="cardPreviewFlipHint">hold Alt · back face</div>
     <div class="card-preview-oracle" id="cardPreviewOracle"></div>
   </div>
 
-  <script src="config.js"></script>
   <script>
-
     // ── State ──────────────────────────────────────────────────────────────
-    let ownedCards        = null;   // OwnedCard[] — replaces server session
+    let sessionId = null;
     let selectedCommander = null;
-    let selectedPartner   = null;
-    let currentDeck       = null;
-    const cardImages      = {};     // name → imageUrl cache
-    let allCommandersData  = [];
-    let partnerCandidates  = [];
+    let selectedPartner = null;
+    let currentDeck = null;
+    const cardImages = {};   // name → imageUrl cache
+    let allCommandersData = [];
+    let partnerCandidates = [];
     let pendingCommanderData = null;
-    let targetLands = null;  // null = let buildDeck auto-calculate
+    let targetLands = null;  // null = let server auto-calculate
+    let deckFillFilter = 'full';
+    let totalCardsCount = 0;
 
     // ── DOM refs ───────────────────────────────────────────────────────────
-    const fileInput       = document.getElementById('fileInput');
-    const fileLabelEl     = document.getElementById('fileLabel');
-    const fileLabelText   = document.getElementById('fileLabelText');
-    const cardListInput   = document.getElementById('cardListInput');
-    const analyzeBtn      = document.getElementById('analyzeBtn');
-    const clearBtn        = document.getElementById('clearBtn');
-    const statusText      = document.getElementById('statusText');
-    const errorBox        = document.getElementById('errorBox');
-    const commanderSection  = document.getElementById('commandersSection');
-    const commanderGrid   = document.getElementById('commanderGrid');
-    const resultsCount    = document.getElementById('resultsCount');
-    const deckSection     = document.getElementById('deckSection');
+    const fileInput      = document.getElementById('fileInput');
+    const fileLabelEl    = document.getElementById('fileLabel');
+    const fileLabelText  = document.getElementById('fileLabelText');
+    const cardListInput  = document.getElementById('cardListInput');
+    const analyzeBtn     = document.getElementById('analyzeBtn');
+    const clearBtn       = document.getElementById('clearBtn');
+    const statusText     = document.getElementById('statusText');
+    const errorBox       = document.getElementById('errorBox');
+    const commanderSection = document.getElementById('commandersSection');
+    const commanderGrid  = document.getElementById('commanderGrid');
+    const resultsCount   = document.getElementById('resultsCount');
+    const deckSection    = document.getElementById('deckSection');
     const cardPreview          = document.getElementById('cardPreview');
     const cardPreviewImg       = document.getElementById('cardPreviewImg');
+    const cardPreviewImg2      = document.getElementById('cardPreviewImg2');
     const cardPreviewFlipHint  = document.getElementById('cardPreviewFlipHint');
     const cardPreviewOracle    = document.getElementById('cardPreviewOracle');
 
-    let previewFrontUrl = null;
-    let previewBackUrl  = null;
-    let previewShowBack = false;
+    let previewFrontUrl   = null;
+    let previewBackUrl    = null;
+    let previewShowBack   = false;
 
     document.addEventListener('keydown', e => {
       if (e.key === 'Alt' && previewBackUrl && cardPreview.style.display !== 'none') {
@@ -909,15 +982,33 @@
     // ── Game changer limit — active class + rebuild deck on change ─────────
     document.querySelectorAll('input[name="gcLimit"]').forEach(radio => {
       radio.addEventListener('change', () => {
-        document.querySelectorAll('.gc-option').forEach(l => l.classList.remove('active'));
+        document.querySelectorAll('input[name="gcLimit"]').forEach(r => r.closest('.gc-option').classList.remove('active'));
         radio.closest('.gc-option').classList.add('active');
-        if (selectedCommander && ownedCards && !pendingCommanderData) {
+        if (selectedCommander && sessionId && !pendingCommanderData) {
           const cardEl = document.querySelector('.commander-card.selected');
           const cmdData = allCommandersData.find(d => d.name === selectedCommander);
           if (cardEl && cmdData) selectCommander(cardEl, cmdData);
         }
       });
     });
+
+    // ── Collection fill filter ─────────────────────────────────────────────
+    document.querySelectorAll('input[name="deckFill"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        document.querySelectorAll('input[name="deckFill"]').forEach(r => r.closest('.gc-option').classList.remove('active'));
+        radio.closest('.gc-option').classList.add('active');
+        deckFillFilter = radio.value;
+        if (allCommandersData.length > 0) {
+          renderCommanders(getFilteredCommanders(), totalCardsCount);
+        }
+      });
+    });
+
+    function getFilteredCommanders() {
+      if (deckFillFilter === 'all') return allCommandersData;
+      const min = deckFillFilter === 'full' ? 99 : 80;
+      return allCommandersData.filter(cmd => cmd.validCardCount >= min);
+    }
 
     // ── Land slider ───────────────────────────────────────────────────────
     const landSlider    = document.getElementById('landSlider');
@@ -929,26 +1020,29 @@
 
     landSlider.addEventListener('change', () => {
       targetLands = parseInt(landSlider.value, 10);
-      if (selectedCommander && ownedCards) rebuildCurrentDeck();
+      if (selectedCommander && sessionId) rebuildCurrentDeck();
     });
 
     async function rebuildCurrentDeck() {
-      if (!selectedCommander || !ownedCards) return;
-      const cmdCard = ownedCards.find(oc => oc.card.name.toLowerCase() === selectedCommander.toLowerCase())?.card;
-      if (!cmdCard) return;
+      if (!selectedCommander || !sessionId) return;
       deckSection.style.display = 'none';
       setStatus('<span class="spinner"></span>Rebuilding deck…');
       try {
         const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
-        let partnerCard = null;
-        if (selectedPartner) {
-          partnerCard = ownedCards.find(oc => oc.card.name.toLowerCase() === selectedPartner.toLowerCase())?.card ?? null;
-        }
-        const deck = await buildDeck(cmdCard, ownedCards, gcLimit, partnerCard, targetLands ?? undefined);
-        renderDeck(deck);
-        setStatus(`Deck built — ${deck.totalCards}/100 cards`);
+        const body = { sessionId, commanderName: selectedCommander, gcLimit };
+        if (selectedPartner) body.partnerName = selectedPartner;
+        if (targetLands !== null) body.targetLands = targetLands;
+        const res = await fetch('/api/build-deck', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error); setStatus(''); return; }
+        renderDeck(data);
+        setStatus(`Deck built — ${data.totalCards}/100 cards`);
       } catch (e) {
-        showError('Error: ' + e.message);
+        showError('Network error: ' + e.message);
         setStatus('');
       }
     }
@@ -983,10 +1077,9 @@
       statusText.textContent = '';
       hideError();
       checkReady();
-      ownedCards = null;
+      sessionId = null;
       selectedCommander = null;
       selectedPartner = null;
-      currentDeck = null;
       targetLands = null;
       allCommandersData = [];
       partnerCandidates = [];
@@ -1005,70 +1098,25 @@
       hideError();
       commanderSection.style.display = 'none';
       deckSection.style.display = 'none';
-      selectedCommander = null;
 
       try {
-        const parsed = parseCardList(content);
-        if (parsed.length === 0) {
-          showError('Could not parse any cards from the provided list.');
-          setStatus('');
-          analyzeBtn.disabled = false;
-          return;
-        }
-
-        ownedCards = await fetchCardsBatch(parsed);
-
-        const seenCommanderNames = new Set();
-        const commanders = ownedCards.filter(oc => {
-          if (!isLegalCommander(oc.card)) return false;
-          const key = oc.card.name.toLowerCase();
-          if (seenCommanderNames.has(key)) return false;
-          seenCommanderNames.add(key);
-          return true;
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cardListContent: content }),
         });
-        if (commanders.length === 0) {
-          showError('No legal commanders found in your collection.');
-          setStatus('');
-          analyzeBtn.disabled = false;
-          return;
-        }
 
-        // Collect background enchantments as potential partners
-        const seenBgNames = new Set();
-        partnerCandidates = ownedCards.filter(oc => {
-          if (oc.card.legalities?.commander !== 'legal') return false;
-          const tl = getTypeLine(oc.card);
-          if (!tl.includes('Legendary') || !tl.includes('Background')) return false;
-          const key = oc.card.name.toLowerCase();
-          if (seenBgNames.has(key)) return false;
-          seenBgNames.add(key);
-          return true;
-        }).map(oc => ({
-          name: oc.card.name,
-          imageUrl: getCardImageUrl(oc.card, 'normal'),
-          imageUrlBack: getCardBackImageUrl(oc.card, 'normal'),
-          oracleText: getOracleText(oc.card),
-          colorIdentity: oc.card.color_identity,
-          typeLine: getTypeLine(oc.card),
-          partnerType: getPartnerType(oc.card),
-          card: oc.card,
-        }));
+        const data = await res.json();
+        if (!res.ok) { showError(data.error || 'Unknown error'); setStatus(''); analyzeBtn.disabled = false; return; }
 
-        setStatus(`<span class="spinner"></span>Scoring ${commanders.length} commander(s) via EDHRec…`);
-
-        const scores = [];
-        for (const cmd of commanders) {
-          const score = await scoreCommander(cmd.card, ownedCards);
-          scores.push(score);
-          await sleep(200);
-        }
-        scores.sort((a, b) => b.matchPercent - a.matchPercent);
-
-        allCommandersData = scores;
-        renderCommanders(scores, ownedCards.length);
-        setStatus(`Analysed ${ownedCards.length} card(s) — found ${commanders.length} potential commander(s)`);
+        sessionId = data.sessionId;
+        allCommandersData = data.commanders;
+        totalCardsCount = data.totalCards;
+        partnerCandidates = data.partnerCandidates || [];
+        renderCommanders(getFilteredCommanders(), totalCardsCount);
+        setStatus(`Analysed ${data.totalCards} card(s) — found ${data.commanderCount} potential commander(s)`);
       } catch (e) {
-        showError('Error: ' + e.message);
+        showError('Network error: ' + e.message);
         setStatus('');
       } finally {
         analyzeBtn.disabled = false;
@@ -1080,8 +1128,10 @@
       commanderGrid.innerHTML = '';
 
       if (commanders.length === 0) {
-        commanderGrid.innerHTML = `<p style="color:var(--text-dim);font-style:italic;grid-column:1/-1;">
-          No legal commanders found in your collection.</p>`;
+        const msg = allCommandersData.length > 0
+          ? 'No commanders match the current filter — try a less strict Collection Fill setting.'
+          : 'No legal commanders found in your collection.';
+        commanderGrid.innerHTML = `<p style="color:var(--text-dim);font-style:italic;grid-column:1/-1;">${msg}</p>`;
       }
 
       commanders.forEach((cmd, i) => {
@@ -1095,15 +1145,25 @@
 
         const pipsHtml = cmd.colorIdentity.map(c => `<span class="pip pip-${c}" title="${colorName(c)}">${c}</span>`).join('');
 
+        const isPair = !!cmd.partner;
+
+        const artHtml = isPair
+          ? `<div class="art-half art-left">${cmd.imageUrl ? `<img src="${escHtml(cmd.imageUrl)}" alt="${escHtml(cmd.name)}" loading="lazy" />` : ''}</div>
+             <div class="art-half art-right">${cmd.partner.imageUrl ? `<img src="${escHtml(cmd.partner.imageUrl)}" alt="${escHtml(cmd.partner.name)}" loading="lazy" />` : ''}</div>`
+          : (cmd.imageUrl
+              ? `<img src="${escHtml(cmd.imageUrl)}" alt="${escHtml(cmd.name)}" loading="lazy" />`
+              : `<div class="card-art-placeholder">🃏</div>`);
+
+        const nameHtml = isPair
+          ? `<div class="card-name pair-name">${escHtml(cmd.name)}<span class="pair-amp">&amp; ${escHtml(cmd.partner.name)}</span></div>`
+          : `<div class="card-name">${escHtml(cmd.name)}</div>`;
+
         card.innerHTML = `
-          <div class="card-art">
-            ${cmd.imageUrl
-              ? `<img src="${cmd.imageUrl}" alt="${escHtml(cmd.name)}" loading="lazy" />`
-              : `<div class="card-art-placeholder">🃏</div>`
-            }
+          <div class="card-art${isPair ? ' card-art-pair' : ''}">
+            ${artHtml}
           </div>
           <div class="card-body">
-            <div class="card-name">${escHtml(cmd.name)}</div>
+            ${nameHtml}
             <div class="card-meta">
               <div class="pips">${pipsHtml || '<span style="color:var(--text-dim);font-size:11px;">Colorless</span>'}</div>
               <div class="match-score ${textClass}">${pct}%</div>
@@ -1115,8 +1175,14 @@
         card.dataset.commanderName = cmd.name;
         card.addEventListener('click', () => selectCommander(card, cmd));
 
-        if (cmd.imageUrl) {
-          card.addEventListener('mouseenter', e => showCardPreview(cmd.imageUrl, cmd.imageUrlBack, cmd.oracleText, e));
+        if (cmd.imageUrl || cmd.partner?.imageUrl) {
+          card.addEventListener('mouseenter', e => showCardPreview(
+            cmd.imageUrl,
+            isPair ? null : cmd.imageUrlBack,
+            isPair ? null : cmd.oracleText,
+            e,
+            isPair ? (cmd.partner?.imageUrl ?? null) : null
+          ));
           card.addEventListener('mousemove',  e => movePreview(e));
           card.addEventListener('mouseleave', hidePreview);
         }
@@ -1124,14 +1190,16 @@
         commanderGrid.appendChild(card);
       });
 
-      resultsCount.textContent = commanders.length
-        ? `${commanders.length} found · sorted by EDHRec match`
-        : '';
+      const filteredLabel = commanders.length !== allCommandersData.length
+        ? `${commanders.length} of ${allCommandersData.length} · sorted by EDHRec match`
+        : `${commanders.length} found · sorted by EDHRec match`;
+      resultsCount.textContent = commanders.length ? filteredLabel : '';
       commanderSection.style.display = '';
     }
 
     // ── Partner selection helpers ──────────────────────────────────────────
     function isCompatiblePartner(pendingCmd, candidateCmd) {
+      if (candidateCmd.partner) return false; // already a pre-built pair, not selectable as individual partner
       const pType = pendingCmd.partnerType;
       const cType = candidateCmd.partnerType;
       if (!pType) return false;
@@ -1139,6 +1207,8 @@
       if (pType === 'friends-forever' && cType === 'friends-forever') return true;
       if (pType === 'partner-with' && pendingCmd.partnerWith &&
           pendingCmd.partnerWith.toLowerCase() === candidateCmd.name.toLowerCase()) return true;
+      if (pType === 'doctor' && cType === 'doctors-companion') return true;
+      if (pType === 'doctors-companion' && cType === 'doctor') return true;
       return false;
     }
 
@@ -1150,10 +1220,15 @@
       banner.id = 'partnerBanner';
       const label = cmd.partnerType === 'chooses-background'
         ? 'Choose a Background enchantment to pair'
-        : 'Select a partner commander';
+        : cmd.partnerType === 'doctor'
+          ? "Select a Doctor's Companion to pair"
+          : cmd.partnerType === 'doctors-companion'
+            ? 'Select a Doctor to pair'
+            : 'Select a partner commander';
       banner.innerHTML = `<span>${escHtml(label)}</span><button onclick="skipPartner()">Build without partner</button>`;
       commanderGrid.insertBefore(banner, commanderGrid.firstChild);
 
+      // Highlight/dim commander cards based on compatibility
       document.querySelectorAll('.commander-card').forEach(c => {
         if (c.classList.contains('selected')) return;
         const cName = c.dataset.commanderName;
@@ -1165,6 +1240,7 @@
         }
       });
 
+      // For "chooses-background", show background cards below the grid
       if (cmd.partnerType === 'chooses-background' && partnerCandidates.length > 0) {
         const bgSection = document.createElement('div');
         bgSection.id = 'backgroundSection';
@@ -1176,12 +1252,10 @@
           const bgCard = document.createElement('div');
           bgCard.className = 'background-card';
           bgCard.textContent = bg.name;
-          bgCard.addEventListener('click', async () => {
-            const commanderOwned = ownedCards.find(oc => oc.card.name.toLowerCase() === pendingCommanderData.name.toLowerCase());
-            const partnerCard = bg.card;
-            const cmdData = pendingCommanderData;
+          bgCard.addEventListener('click', () => {
+            const commanderName = pendingCommanderData.name;
             clearPartnerSelection();
-            await buildDeckWithPair(commanderOwned, partnerCard, cmdData);
+            buildDeckWithPair(commanderName, bg.name);
           });
           if (bg.imageUrl) {
             bgCard.addEventListener('mouseenter', e => showCardPreview(bg.imageUrl, bg.imageUrlBack, bg.oracleText, e));
@@ -1207,8 +1281,7 @@
       if (!pendingCommanderData) return;
       const name = pendingCommanderData.name;
       clearPartnerSelection();
-      const commanderOwned = ownedCards.find(oc => oc.card.name.toLowerCase() === name.toLowerCase());
-      if (commanderOwned) buildDeckSingle(commanderOwned.card);
+      buildDeckSingle(name);
     }
 
     // ── Select a commander & build deck ───────────────────────────────────
@@ -1222,18 +1295,17 @@
         return;
       }
 
-      // If in partner-selection mode, check if this is a valid partner
+      // If in partner-selection mode, check if this click is a valid partner
       if (pendingCommanderData) {
         if (isCompatiblePartner(pendingCommanderData, cmd)) {
-          const commanderOwned = ownedCards.find(oc => oc.card.name.toLowerCase() === pendingCommanderData.name.toLowerCase());
-          const partnerOwned   = ownedCards.find(oc => oc.card.name.toLowerCase() === name.toLowerCase());
-          const cmdData = pendingCommanderData;
+          const commanderName = pendingCommanderData.name;
           clearPartnerSelection();
           cardEl.classList.add('selected');
           selectedCommander = name;
-          if (commanderOwned && partnerOwned) await buildDeckWithPair(commanderOwned, partnerOwned.card, cmdData);
+          await buildDeckWithPair(commanderName, name);
           return;
         }
+        // Not a valid partner — restart selection with the new card
         clearPartnerSelection();
       }
 
@@ -1243,49 +1315,92 @@
       document.querySelectorAll('.commander-card').forEach(c => c.classList.remove('selected'));
       cardEl.classList.add('selected');
 
+      // Pre-computed pair: build directly, no intermediate partner selection
+      if (cmd.partner) {
+        await buildDeckWithPair(name, cmd.partner.name);
+        return;
+      }
+
       if (cmd.partnerType) {
         enterPartnerSelectionMode(cmd);
       } else {
-        const commanderOwned = ownedCards.find(oc => oc.card.name.toLowerCase() === name.toLowerCase());
-        if (commanderOwned) await buildDeckSingle(commanderOwned.card);
+        await buildDeckSingle(name);
       }
     }
 
-    async function buildDeckSingle(commanderCard) {
+    async function buildDeckSingle(commanderName) {
       selectedPartner = null;
       deckSection.style.display = 'none';
       setStatus('<span class="spinner"></span>Building deck…');
       try {
         const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
-        const deck = await buildDeck(commanderCard, ownedCards, gcLimit, null, targetLands ?? undefined);
-        renderDeck(deck);
-        setStatus(`Deck built — ${deck.totalCards}/100 cards`);
+        const body = { sessionId, commanderName, gcLimit };
+        if (targetLands !== null) body.targetLands = targetLands;
+        const res = await fetch('/api/build-deck', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error); setStatus(''); return; }
+        renderDeck(data);
+        setStatus(`Deck built — ${data.totalCards}/100 cards`);
       } catch (e) {
-        showError('Error: ' + e.message);
+        showError('Network error: ' + e.message);
         setStatus('');
       }
     }
 
-    async function buildDeckWithPair(commanderOwned, partnerCard, cmdData) {
-      selectedPartner = partnerCard.name;
+    async function buildDeckWithPair(commanderName, partnerName) {
+      selectedPartner = partnerName;
       deckSection.style.display = 'none';
       setStatus('<span class="spinner"></span>Building deck…');
       try {
         const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
-        const deck = await buildDeck(commanderOwned.card, ownedCards, gcLimit, partnerCard, targetLands ?? undefined);
-        renderDeck(deck);
-        setStatus(`Deck built — ${deck.totalCards}/100 cards`);
+        const body = { sessionId, commanderName, partnerName, gcLimit };
+        if (targetLands !== null) body.targetLands = targetLands;
+        const res = await fetch('/api/build-deck', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error); setStatus(''); return; }
+        renderDeck(data);
+        setStatus(`Deck built — ${data.totalCards}/100 cards`);
       } catch (e) {
-        showError('Error: ' + e.message);
+        showError('Network error: ' + e.message);
         setStatus('');
       }
+    }
+
+    // ── Export to Moxfield ─────────────────────────────────────────────────
+    function exportToMoxfield() {
+      if (!currentDeck) return;
+      const lines = [
+        'Commander',
+        `1 ${currentDeck.commander.name}`,
+        ...(currentDeck.partner ? [`1 ${currentDeck.partner.name}`] : []),
+        '',
+        'Deck',
+      ];
+      for (const c of currentDeck.cards) {
+        lines.push(`${c.quantity} ${c.name}`);
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `${currentDeck.commander.name.replace(/[^a-z0-9]/gi, '_')}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     // ── Render deck ────────────────────────────────────────────────────────
     function renderDeck(deck) {
       currentDeck = deck;
 
-      // Sync land slider: max = deck slots (99 or 98), value = auto-calculated target
+      // Sync land slider: max = deck slots (99 or 98), value = server-calculated target
       landSlider.max = deck.deckSize;
       if (targetLands === null) {
         landSlider.value = deck.targetLands;
@@ -1295,19 +1410,38 @@
         landSliderVal.textContent = targetLands;
       }
 
+      // Header
       const imgEl = document.getElementById('deckCommanderImg');
       imgEl.src = deck.commander.imageUrl || '';
       imgEl.style.display = deck.commander.imageUrl ? '' : 'none';
-      document.getElementById('deckCommanderName').textContent = deck.commander.name;
+
+      const img2El = document.getElementById('deckCommanderImg2');
+      if (deck.partner) {
+        img2El.src = deck.partner.imageUrl || '';
+        img2El.style.display = deck.partner.imageUrl ? '' : 'none';
+        document.getElementById('deckCommanderName').textContent =
+          deck.commander.name + ' & ' + deck.partner.name;
+      } else {
+        img2El.style.display = 'none';
+        document.getElementById('deckCommanderName').textContent = deck.commander.name;
+      }
 
       const deckHeader = document.querySelector('.deck-header');
-      deckHeader.onmouseenter = e => showCardPreview(deck.commander.imageUrl, deck.commander.imageUrlBack, deck.commander.oracleText, e);
+      deckHeader.onmouseenter = e => showCardPreview(
+        deck.commander.imageUrl,
+        deck.partner ? null : deck.commander.imageUrlBack,
+        deck.partner ? null : deck.commander.oracleText,
+        e,
+        deck.partner ? deck.partner.imageUrl : null
+      );
       deckHeader.onmousemove  = e => movePreview(e);
       deckHeader.onmouseleave = hidePreview;
 
       const pipsEl = document.getElementById('deckCommanderPips');
-      pipsEl.innerHTML = deck.commander.colorIdentity
-        .map(c => `<span class="pip pip-${c}">${c}</span>`).join('');
+      const combinedColors = deck.partner
+        ? [...new Set([...deck.commander.colorIdentity, ...deck.partner.colorIdentity])]
+        : deck.commander.colorIdentity;
+      pipsEl.innerHTML = combinedColors.map(c => `<span class="pip pip-${c}">${c}</span>`).join('');
 
       document.getElementById('deckTotal').textContent = deck.totalCards;
 
@@ -1322,10 +1456,12 @@
         warnEl.style.display = 'none';
       }
 
+      // Cache images
       for (const c of deck.cards) {
         if (c.imageUrl) cardImages[c.name] = c.imageUrl;
       }
 
+      // Group by category
       const groups = {};
       const ORDER = ['Creatures','Planeswalkers','Instants','Sorceries','Enchantments','Artifacts','Lands','Other'];
       for (const cat of ORDER) groups[cat] = [];
@@ -1373,36 +1509,27 @@
       deckSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    // ── Export to Moxfield ─────────────────────────────────────────────────
-    function exportToMoxfield() {
-      if (!currentDeck) return;
-      const lines = [
-        'Commander',
-        `1 ${currentDeck.commander.name}`,
-        ...(currentDeck.partner ? [`1 ${currentDeck.partner.name}`] : []),
-        '',
-        'Deck',
-      ];
-      for (const c of currentDeck.cards) {
-        lines.push(`${c.quantity} ${c.name}`);
-      }
-      const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = `${currentDeck.commander.name.replace(/[^a-z0-9]/gi, '_')}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
     // ── Card preview tooltip ───────────────────────────────────────────────
-    function showCardPreview(frontUrl, backUrl, oracleText, e) {
-      if (!frontUrl) return;
+    function showCardPreview(frontUrl, backUrl, oracleText, e, front2Url = null) {
+      if (!frontUrl && !front2Url) return;
       previewFrontUrl = frontUrl;
-      previewBackUrl  = backUrl || null;
       previewShowBack = false;
-      cardPreviewImg.src = frontUrl;
-      cardPreviewFlipHint.style.display = backUrl ? '' : 'none';
+      cardPreviewImg.src = frontUrl || '';
+      cardPreviewImg.style.display = frontUrl ? '' : 'none';
+
+      if (front2Url) {
+        cardPreviewImg2.src = front2Url;
+        cardPreviewImg2.style.display = '';
+        cardPreview.style.width = '448px';
+        previewBackUrl = null;
+        cardPreviewFlipHint.style.display = 'none';
+      } else {
+        cardPreviewImg2.style.display = 'none';
+        cardPreview.style.width = '220px';
+        previewBackUrl = backUrl || null;
+        cardPreviewFlipHint.style.display = backUrl ? '' : 'none';
+      }
+
       if (oracleText) {
         cardPreviewOracle.textContent = oracleText;
         cardPreviewOracle.style.display = '';
@@ -1416,7 +1543,7 @@
     function movePreview(e) {
       const x = e.clientX + 16;
       const y = e.clientY - 60;
-      const maxX = window.innerWidth  - 240;
+      const maxX = window.innerWidth - cardPreview.offsetWidth - 8;
       const maxY = window.innerHeight - 520;
       cardPreview.style.left = Math.min(x, maxX) + 'px';
       cardPreview.style.top  = Math.max(10, Math.min(y, maxY)) + 'px';
@@ -1445,494 +1572,9 @@
       return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-
     function setStatus(html) { statusText.innerHTML = html; }
     function showError(msg)  { errorBox.textContent = msg; errorBox.style.display = ''; }
     function hideError()     { errorBox.style.display = 'none'; }
-
-    // ══════════════════════════════════════════════════════════════════════
-    // ── Parser (ported from src/parser.ts) ────────────────────────────────
-    // ══════════════════════════════════════════════════════════════════════
-
-    function parseCardList(content) {
-      const lines = content
-        .split('\n')
-        .map(l => l.trim().replace(/\s+\*\w+\*(\s+\*\w+\*)*$/, ''))
-        .filter(l => l.length > 0 && !l.startsWith('//') && !l.startsWith('#'));
-
-      const cards = [];
-
-      for (const line of lines) {
-        const arenaMatch = line.match(/^(\d+)\s+(.+?)\s+\(([A-Z0-9]+)\)\s+(\S+).*$/i);
-        if (arenaMatch) {
-          cards.push({
-            quantity: parseInt(arenaMatch[1], 10),
-            name: arenaMatch[2].trim(),
-            set: arenaMatch[3].toUpperCase(),
-            collectorNumber: arenaMatch[4],
-          });
-          continue;
-        }
-
-        const qtyMatch = line.match(/^(\d+)\s+(.+)$/);
-        if (qtyMatch) {
-          cards.push({
-            quantity: parseInt(qtyMatch[1], 10),
-            name: qtyMatch[2].trim(),
-            set: '',
-            collectorNumber: '',
-          });
-          continue;
-        }
-
-        cards.push({ quantity: 1, name: line.trim(), set: '', collectorNumber: '' });
-      }
-
-      return cards;
-    }
-
-    // ══════════════════════════════════════════════════════════════════════
-    // ── Scryfall (ported from src/scryfall.ts) ─────────────────────────────
-    // ══════════════════════════════════════════════════════════════════════
-
-    const SCRYFALL_BASE = 'https://api.scryfall.com';
-    const BATCH_SIZE    = 75;
-    const RATE_LIMIT_MS = 120;
-
-    async function fetchCardsBatch(parsedCards) {
-      const results  = [];
-      const notFound = [];
-
-      for (let i = 0; i < parsedCards.length; i += BATCH_SIZE) {
-        const chunk = parsedCards.slice(i, i + BATCH_SIZE);
-
-        const identifiers = chunk.map(c => {
-          if (c.set && c.collectorNumber) {
-            return { set: c.set.toLowerCase(), collector_number: c.collectorNumber };
-          }
-          return { name: c.name };
-        });
-
-        const response = await fetch(`${SCRYFALL_BASE}/cards/collection`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifiers }),
-        });
-
-        if (!response.ok) continue;
-
-        const data = await response.json();
-
-        for (const scryfallCard of data.data) {
-          const original = chunk.find(c => {
-            if (c.set && c.collectorNumber) {
-              return (
-                c.set.toLowerCase() === scryfallCard.set.toLowerCase() &&
-                c.collectorNumber === scryfallCard.collector_number
-              );
-            }
-            return c.name.toLowerCase() === scryfallCard.name.toLowerCase();
-          });
-          results.push({ quantity: original?.quantity ?? 1, card: scryfallCard });
-        }
-
-        for (const nf of data.not_found ?? []) {
-          notFound.push(nf.name ?? JSON.stringify(nf));
-        }
-
-        if (i + BATCH_SIZE < parsedCards.length) await sleep(RATE_LIMIT_MS);
-      }
-
-      return results;
-    }
-
-    function getCardImageUrl(card, size = 'normal') {
-      if (card.image_uris) return card.image_uris[size] ?? null;
-      if (card.card_faces?.[0]?.image_uris) return card.card_faces[0].image_uris[size] ?? null;
-      return null;
-    }
-
-    function getCardBackImageUrl(card, size = 'normal') {
-      if (card.card_faces?.[1]?.image_uris) return card.card_faces[1].image_uris[size] ?? null;
-      return null;
-    }
-
-    // ══════════════════════════════════════════════════════════════════════
-    // ── EDHRec (ported from src/edhrec.ts) ────────────────────────────────
-    // ══════════════════════════════════════════════════════════════════════
-
-    function toEdhrecSlug(name) {
-      return name
-        .toLowerCase()
-        .replace(/[',\.!]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-    }
-
-    function edhrecCommanderUrl(name) {
-      return `https://edhrec.com/commanders/${toEdhrecSlug(name)}`;
-    }
-
-    async function fetchCommanderData(commanderName) {
-      const slug  = toEdhrecSlug(commanderName);
-      const proxy = EDHREC_PROXY.replace(/\/$/, '');
-      try {
-        let res = await fetch(`${proxy}/pages/commanders/${slug}.json`);
-        if (!res.ok) {
-          res = await fetch(`${proxy}/pages/commanders/${slug}-background.json`);
-          if (!res.ok) return [];
-        }
-        return parseEdhrecResponse(await res.json());
-      } catch {
-        return [];
-      }
-    }
-
-    function parseEdhrecResponse(data) {
-      const cardlists = data?.container?.json_dict?.cardlists ?? [];
-      const cards = [];
-      let rank = 0;
-
-      for (const list of cardlists) {
-        const isGameChangerList = list.tag === 'gamechangers';
-        for (const view of list.cardviews ?? []) {
-          if (Array.isArray(view)) {
-            for (const subview of view) {
-              if (subview?.name) {
-                cards.push({ name: subview.name, inclusion: subview.inclusion ?? 0, synergy: subview.synergy ?? 0, rank: rank++, isGameChanger: isGameChangerList });
-              }
-            }
-          } else if (view?.name) {
-            cards.push({ name: view.name, inclusion: view.inclusion ?? 0, synergy: view.synergy ?? 0, rank: rank++, isGameChanger: isGameChangerList });
-          }
-        }
-      }
-
-      return cards;
-    }
-
-    // ══════════════════════════════════════════════════════════════════════
-    // ── Deck builder (ported from src/deckbuilder.ts) ──────────────────────
-    // ══════════════════════════════════════════════════════════════════════
-
-    function getOracleText(card) {
-      if (card.oracle_text) return card.oracle_text;
-      return card.card_faces?.map(f => f.oracle_text ?? '').join(' ') ?? '';
-    }
-
-    function getTypeLine(card) {
-      if (card.type_line) return card.type_line;
-      return card.card_faces?.map(f => f.type_line ?? '').join(' ') ?? '';
-    }
-
-    function getPartnerType(card) {
-      const oracle   = getOracleText(card);
-      const typeLine = getTypeLine(card);
-      if (/\bFriends forever\b/i.test(oracle)) return 'friends-forever';
-      if (/\bChoose a Background\b/i.test(oracle)) return 'chooses-background';
-      if (typeLine.includes('Legendary') && typeLine.includes('Background')) return 'background';
-      if (/\bPartner with\b/i.test(oracle)) return 'partner-with';
-      if (/\bPartner\b(?! with)/i.test(oracle)) return 'partner';
-      return null;
-    }
-
-    function getPartnerWithName(card) {
-      const match = getOracleText(card).match(/\bPartner with ([^(\n]+)/i);
-      return match ? match[1].trim() : null;
-    }
-
-    function isLegalCommander(card) {
-      if (card.legalities?.commander !== 'legal') return false;
-      const typeLine   = getTypeLine(card);
-      const oracleText = getOracleText(card);
-
-      // Backgrounds are only valid paired with a "Choose a Background" commander, not standalone
-      if (typeLine.includes('Background')) return false;
-
-      if (typeLine.includes('Legendary') && typeLine.includes('Creature')) return true;
-      if (oracleText.includes('can be your commander')) return true;
-
-      // Legendary planeswalkers with generic Partner or Friends Forever can lead a paired command zone
-      const partnerType = getPartnerType(card);
-      if (
-        typeLine.includes('Legendary') &&
-        typeLine.includes('Planeswalker') &&
-        (partnerType === 'partner' || partnerType === 'friends-forever')
-      ) return true;
-
-      return false;
-    }
-
-    function isValidPartnerPairJS(a, b) {
-      const aType = getPartnerType(a);
-      const bType = getPartnerType(b);
-      if (aType === 'partner' && bType === 'partner') return true;
-      if (aType === 'friends-forever' && bType === 'friends-forever') return true;
-      if (aType === 'partner-with' && getPartnerWithName(a)?.toLowerCase() === b.name.toLowerCase()) return true;
-      if (bType === 'partner-with' && getPartnerWithName(b)?.toLowerCase() === a.name.toLowerCase()) return true;
-      if (aType === 'chooses-background' && bType === 'background') return true;
-      if (aType === 'background' && bType === 'chooses-background') return true;
-      return false;
-    }
-
-    function fitsColorIdentity(commanderColors, cardColors) {
-      return cardColors.every(c => commanderColors.includes(c));
-    }
-
-    async function scoreCommander(commander, allOwned) {
-      const edhrecCards = await fetchCommanderData(commander.name);
-      const edhrecNames = new Set(edhrecCards.map(c => c.name.toLowerCase()));
-
-      const validOwned = allOwned.filter(
-        oc => oc.card.id !== commander.id &&
-              fitsColorIdentity(commander.color_identity, oc.card.color_identity)
-      );
-
-      const matchingOwned = validOwned.filter(oc => edhrecNames.has(oc.card.name.toLowerCase()));
-
-      const denominator  = Math.min(99, edhrecCards.length);
-      const matchPercent = denominator > 0 ? Math.round((matchingOwned.length / denominator) * 100) : 0;
-
-      return {
-        name: commander.name,
-        colorIdentity: commander.color_identity,
-        matchCount: matchingOwned.length,
-        validCardCount: validOwned.length,
-        matchPercent,
-        edhrecUrl: edhrecCommanderUrl(commander.name),
-        imageUrl: getCardImageUrl(commander, 'normal'),
-        imageUrlBack: getCardBackImageUrl(commander, 'normal'),
-        oracleText: getOracleText(commander),
-        partnerType: getPartnerType(commander),
-        partnerWith: getPartnerWithName(commander),
-      };
-    }
-
-    const BASIC_LANDS = new Set([
-      'plains', 'island', 'swamp', 'mountain', 'forest',
-      'wastes', 'snow-covered plains', 'snow-covered island',
-      'snow-covered swamp', 'snow-covered mountain', 'snow-covered forest',
-    ]);
-
-    function isBasicLand(card) {
-      return getTypeLine(card).includes('Basic Land') || BASIC_LANDS.has(card.name.toLowerCase());
-    }
-
-    const LAND_CARE_RE   = /landfall|whenever a land|land enters|sacrifice a land|land card|search your library for a.*land|domain/i;
-    const MANA_SOURCE_RE = /\{T\}[^.]*Add|\bAdd\s+\{[WUBRGC2]/;
-
-    function caresAboutLands(card)    { return LAND_CARE_RE.test(getOracleText(card)); }
-    function isNonLandManaSource(card){ return !getTypeLine(card).includes('Land') && MANA_SOURCE_RE.test(getOracleText(card)); }
-
-    const BASE_LANDS = 39;
-
-    function calculateTargetLands(commander, ownedNonLands, deckSize = 99) {
-      const sample          = ownedNonLands.slice(0, 61);
-      const landCaringCount = sample.filter(oc => caresAboutLands(oc.card)).length;
-      const manaSourceCount = sample.filter(oc => isNonLandManaSource(oc.card)).length;
-
-      let target = BASE_LANDS;
-      if (caresAboutLands(commander)) {
-        target += 3;
-      } else if (landCaringCount >= 5) {
-        target += Math.min(Math.floor(landCaringCount / 3), 4);
-      }
-      target -= Math.floor(manaSourceCount / 3);
-      return Math.max(35, Math.min(deckSize, target));
-    }
-
-    const MANA_COLORS   = new Set(['W', 'U', 'B', 'R', 'G']);
-    const COLOR_BASICS  = {
-      W: ['plains', 'snow-covered plains'],
-      U: ['island', 'snow-covered island'],
-      B: ['swamp', 'snow-covered swamp'],
-      R: ['mountain', 'snow-covered mountain'],
-      G: ['forest', 'snow-covered forest'],
-    };
-
-    function buildBasicPool(ownedLands) {
-      const pool = new Map();
-      for (const oc of ownedLands) {
-        if (!isBasicLand(oc.card)) continue;
-        const key   = oc.card.name.toLowerCase();
-        const entry = pool.get(key);
-        if (entry) entry.qty += oc.quantity;
-        else pool.set(key, { card: oc.card, qty: oc.quantity });
-      }
-      return pool;
-    }
-
-    function roundToIntegers(values, target) {
-      const entries  = Object.entries(values).map(([k, v]) => ({ k, floor: Math.floor(v), frac: v % 1 }));
-      const remainder = target - entries.reduce((s, e) => s + e.floor, 0);
-      entries.sort((a, b) => b.frac - a.frac);
-      const result = {};
-      entries.forEach((e, i) => { result[e.k] = e.floor + (i < remainder ? 1 : 0); });
-      return result;
-    }
-
-    function buildProportionalBasics(slotsAvailable, commanderColors, basicPool, selectedNonLands, edhrecMap) {
-      if (slotsAvailable <= 0) return [];
-
-      const colors = commanderColors.filter(c => MANA_COLORS.has(c));
-
-      if (colors.length === 0) {
-        const wastes = basicPool.get('wastes');
-        if (!wastes) return [];
-        return [makeDeckCard(wastes.card, Math.min(wastes.qty, slotsAvailable), edhrecMap)];
-      }
-
-      const counts = {};
-      for (const c of colors) counts[c] = 0;
-      for (const dc of selectedNonLands) {
-        for (const c of dc.colorIdentity) {
-          if (c in counts) counts[c]++;
-        }
-      }
-
-      const countTotal = Object.values(counts).reduce((s, n) => s + n, 0);
-      if (countTotal === 0) for (const c of colors) counts[c] = 1;
-      const weightTotal = Object.values(counts).reduce((s, n) => s + n, 0);
-
-      const rawAllocations = {};
-      for (const c of colors) rawAllocations[c] = (counts[c] / weightTotal) * slotsAvailable;
-      const allocations = roundToIntegers(rawAllocations, slotsAvailable);
-
-      const result = [];
-      for (const color of colors) {
-        let remaining = allocations[color];
-        for (const name of COLOR_BASICS[color]) {
-          if (remaining <= 0) break;
-          const entry = basicPool.get(name);
-          if (!entry || entry.qty <= 0) continue;
-          const qty = Math.min(entry.qty, remaining);
-          result.push(makeDeckCard(entry.card, qty, edhrecMap));
-          remaining -= qty;
-        }
-      }
-      return result;
-    }
-
-    async function buildDeck(commander, allOwned, gcLimit = 'unlimited', partner = null, targetLandsOverride = undefined) {
-      const edhrecCards = await fetchCommanderData(commander.name, partner?.name);
-      const edhrecMap   = new Map(edhrecCards.map(c => [c.name.toLowerCase(), c]));
-
-      const deckSize = partner ? 98 : 99;
-      const combinedColors = partner
-        ? [...new Set([...commander.color_identity, ...partner.color_identity])]
-        : commander.color_identity;
-
-      // Exclude Commander-banned cards (Scryfall sets legalities.commander = 'banned')
-      // and cards outside the combined colour identity or already in the command zone.
-      const validOwned = allOwned.filter(
-        oc => oc.card.legalities?.commander === 'legal' &&
-              oc.card.id !== commander.id &&
-              (!partner || oc.card.id !== partner.id) &&
-              fitsColorIdentity(combinedColors, oc.card.color_identity)
-      );
-
-      const edhrecSort = (a, b) => {
-        const aRec = edhrecMap.get(a.card.name.toLowerCase());
-        const bRec = edhrecMap.get(b.card.name.toLowerCase());
-        if (aRec && !bRec) return -1;
-        if (!aRec && bRec) return  1;
-        if (aRec && bRec)  return aRec.rank - bRec.rank;
-        return (a.card.cmc ?? 0) - (b.card.cmc ?? 0);
-      };
-
-      const ownedLands    = validOwned.filter(oc =>  getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
-      const ownedNonLands = validOwned.filter(oc => !getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
-
-      const targetLands = targetLandsOverride !== undefined
-        ? Math.max(0, Math.min(deckSize, targetLandsOverride))
-        : calculateTargetLands(commander, ownedNonLands, deckSize);
-      const nonLandSlots = deckSize - targetLands;
-
-      const deckCards  = [];
-      const usedNames  = new Set();
-      const gcMax = gcLimit === 'none' ? 0 : gcLimit === 'max3' ? 3 : Infinity;
-      let gcCount = 0;
-
-      for (const oc of ownedNonLands) {
-        if (deckCards.length >= nonLandSlots) break;
-        const nameLower = oc.card.name.toLowerCase();
-        if (usedNames.has(nameLower)) continue;
-        const rec = edhrecMap.get(nameLower);
-        if (rec?.isGameChanger && gcCount >= gcMax) continue;
-        usedNames.add(nameLower);
-        const dc = makeDeckCard(oc.card, 1, edhrecMap);
-        deckCards.push(dc);
-        if (dc.isGameChanger) gcCount++;
-      }
-
-      const selectedNonLands = [...deckCards];
-
-      const totalLandSlots = deckSize - deckCards.length;
-      const nonBasicCap    = Math.ceil(totalLandSlots * 0.55);
-      let nonBasicFilled   = 0;
-      for (const oc of ownedLands) {
-        if (nonBasicFilled >= nonBasicCap) break;
-        if (isBasicLand(oc.card)) continue;
-        const nameLower = oc.card.name.toLowerCase();
-        if (usedNames.has(nameLower)) continue;
-        usedNames.add(nameLower);
-        deckCards.push(makeDeckCard(oc.card, 1, edhrecMap));
-        nonBasicFilled++;
-      }
-
-      const basicPool  = buildBasicPool(ownedLands);
-      const basicCards = buildProportionalBasics(
-        deckSize - deckCards.length,
-        combinedColors,
-        basicPool,
-        selectedNonLands,
-        edhrecMap
-      );
-      deckCards.push(...basicCards);
-
-      const cardCount = deckCards.reduce((s, c) => s + c.quantity, 0);
-
-      return {
-        commander: {
-          name: commander.name,
-          imageUrl: getCardImageUrl(commander, 'normal'),
-          imageUrlBack: getCardBackImageUrl(commander, 'normal'),
-          colorIdentity: commander.color_identity,
-          oracleText: getOracleText(commander),
-        },
-        partner: partner ? {
-          name: partner.name,
-          imageUrl: getCardImageUrl(partner, 'normal'),
-          imageUrlBack: getCardBackImageUrl(partner, 'normal'),
-          colorIdentity: partner.color_identity,
-          oracleText: getOracleText(partner),
-        } : undefined,
-        cards: deckCards,
-        totalCards: (partner ? 2 : 1) + cardCount,
-        slotsRemaining: deckSize - cardCount,
-        targetLands,
-        deckSize,
-      };
-    }
-
-    function makeDeckCard(card, qty, edhrecMap) {
-      const rec = edhrecMap.get(card.name.toLowerCase());
-      return {
-        name: card.name,
-        quantity: qty,
-        typeLine: getTypeLine(card),
-        colorIdentity: card.color_identity,
-        imageUrl: getCardImageUrl(card, 'small'),
-        imageUrlBack: getCardBackImageUrl(card, 'small'),
-        edhrecRank: rec?.rank,
-        isRecommended: rec !== undefined,
-        isGameChanger: rec?.isGameChanger ?? false,
-        inclusion: rec?.inclusion,
-      };
-    }
   </script>
 </body>
 </html>

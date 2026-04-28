@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import { parseCardList } from './parser';
 import { fetchCardsBatch } from './scryfall';
-import { isLegalCommander, scoreCommander, buildDeck, isValidPartnerPair, findPartnerCandidates } from './deckbuilder';
+import { isLegalCommander, scoreCommander, buildDeck, isValidPartnerPair, findPartnerCandidates, buildPairResults } from './deckbuilder';
 import { OwnedCard } from './types';
 
 const app = express();
@@ -48,7 +48,15 @@ app.post('/api/analyze', async (req: Request, res: Response): Promise<void> => {
     const ownedCards = await fetchCardsBatch(parsed);
     console.log(`Retrieved ${ownedCards.length} card(s).`);
 
-    const commanders = ownedCards.filter(oc => isLegalCommander(oc.card));
+    // Deduplicate by card name so multiple printings don't produce duplicate entries
+    const seenCmdNames = new Set<string>();
+    const commanders = ownedCards.filter(oc => {
+      if (!isLegalCommander(oc.card)) return false;
+      const key = oc.card.name.toLowerCase();
+      if (seenCmdNames.has(key)) return false;
+      seenCmdNames.add(key);
+      return true;
+    });
     console.log(`Found ${commanders.length} potential commander(s). Scoring via EDHRec…`);
 
     const scores = [];
@@ -59,7 +67,10 @@ app.post('/api/analyze', async (req: Request, res: Response): Promise<void> => {
       await new Promise(r => setTimeout(r, 200));
     }
 
-    scores.sort((a, b) => b.matchPercent - a.matchPercent);
+    // Merge valid pairs into combined entries; drop the individual entries they came from
+    const { pairs, pairedNames } = buildPairResults(scores);
+    const soloScores = scores.filter(s => !pairedNames.has(s.name.toLowerCase()));
+    const allResults = [...pairs, ...soloScores].sort((a, b) => b.matchPercent - a.matchPercent);
 
     // Store card data for subsequent deck-build requests
     const partnerCandidates = findPartnerCandidates(ownedCards);
@@ -70,7 +81,7 @@ app.post('/api/analyze', async (req: Request, res: Response): Promise<void> => {
       sessionId,
       totalCards: ownedCards.length,
       commanderCount: commanders.length,
-      commanders: scores,
+      commanders: allResults,
       partnerCandidates,
     });
   } catch (err) {

@@ -607,8 +607,14 @@
       width: 220px;
     }
 
-    .card-preview img {
-      width: 220px;
+    .card-preview-imgs {
+      display: flex;
+      gap: 8px;
+    }
+
+    .card-preview-imgs img {
+      flex: 1;
+      min-width: 0;
       border-radius: 10px 10px 0 0;
       box-shadow: 0 12px 40px rgba(0,0,0,0.8);
       display: block;
@@ -752,6 +758,52 @@
       box-shadow: 0 0 6px rgba(201,168,76,0.45);
     }
 
+    /* ── Partner pair card art ───────────────────────────────────────── */
+    .card-art-pair .art-half {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 58%;
+      overflow: hidden;
+    }
+
+    .card-art-pair .art-half img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      display: block;
+    }
+
+    .card-art-pair .art-left {
+      left: 0;
+      z-index: 1;
+    }
+
+    .card-art-pair .art-left::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 24px;
+      background: linear-gradient(to right, transparent, rgba(0,0,0,0.45));
+      pointer-events: none;
+    }
+
+    .card-art-pair .art-right {
+      right: 0;
+    }
+
+    .pair-name {
+      font-size: 11.5px !important;
+      line-height: 1.35;
+    }
+
+    .pair-amp {
+      color: var(--gold-dim);
+      font-size: 10px;
+      display: block;
+      margin: 1px 0;
+    }
+
     /* ── Legend ───────────────────────────────────────────────────────── */
     .legend {
       margin-top: 20px;
@@ -803,6 +855,21 @@
           <span class="gc-pip"></span>None
         </label>
       </div>
+      <div class="gc-options" style="margin-top:10px;">
+        <span class="gc-label">Collection Fill</span>
+        <label class="gc-option fill-option">
+          <input type="radio" name="deckFill" value="all" />
+          <span class="gc-pip"></span>All commanders
+        </label>
+        <label class="gc-option fill-option">
+          <input type="radio" name="deckFill" value="partial" />
+          <span class="gc-pip"></span>80+ cards
+        </label>
+        <label class="gc-option fill-option active">
+          <input type="radio" name="deckFill" value="full" checked />
+          <span class="gc-pip"></span>Full deck
+        </label>
+      </div>
       <div class="actions">
         <button class="btn btn-primary" id="analyzeBtn" disabled>Analyse Collection</button>
         <button class="btn btn-ghost" id="clearBtn">Clear</button>
@@ -824,6 +891,7 @@
     <section class="deck-section" id="deckSection" style="display:none;">
       <div class="deck-header">
         <img class="deck-commander-img" id="deckCommanderImg" src="" alt="" />
+        <img class="deck-commander-img" id="deckCommanderImg2" src="" alt="" style="display:none;" />
         <div class="deck-commander-info">
           <h2 id="deckCommanderName"></h2>
           <div class="pips" id="deckCommanderPips"></div>
@@ -852,7 +920,10 @@
 
   <!-- Card image preview tooltip -->
   <div class="card-preview" id="cardPreview">
-    <img id="cardPreviewImg" src="" alt="" />
+    <div class="card-preview-imgs">
+      <img id="cardPreviewImg" src="" alt="" />
+      <img id="cardPreviewImg2" src="" alt="" style="display:none;" />
+    </div>
     <div class="card-preview-flip-hint" id="cardPreviewFlipHint">hold Alt · back face</div>
     <div class="card-preview-oracle" id="cardPreviewOracle"></div>
   </div>
@@ -868,6 +939,8 @@
     let partnerCandidates = [];
     let pendingCommanderData = null;
     let targetLands = null;  // null = let server auto-calculate
+    let deckFillFilter = 'full';
+    let totalCardsCount = 0;
 
     // ── DOM refs ───────────────────────────────────────────────────────────
     const fileInput      = document.getElementById('fileInput');
@@ -884,6 +957,7 @@
     const deckSection    = document.getElementById('deckSection');
     const cardPreview          = document.getElementById('cardPreview');
     const cardPreviewImg       = document.getElementById('cardPreviewImg');
+    const cardPreviewImg2      = document.getElementById('cardPreviewImg2');
     const cardPreviewFlipHint  = document.getElementById('cardPreviewFlipHint');
     const cardPreviewOracle    = document.getElementById('cardPreviewOracle');
 
@@ -908,7 +982,7 @@
     // ── Game changer limit — active class + rebuild deck on change ─────────
     document.querySelectorAll('input[name="gcLimit"]').forEach(radio => {
       radio.addEventListener('change', () => {
-        document.querySelectorAll('.gc-option').forEach(l => l.classList.remove('active'));
+        document.querySelectorAll('input[name="gcLimit"]').forEach(r => r.closest('.gc-option').classList.remove('active'));
         radio.closest('.gc-option').classList.add('active');
         if (selectedCommander && sessionId && !pendingCommanderData) {
           const cardEl = document.querySelector('.commander-card.selected');
@@ -917,6 +991,24 @@
         }
       });
     });
+
+    // ── Collection fill filter ─────────────────────────────────────────────
+    document.querySelectorAll('input[name="deckFill"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        document.querySelectorAll('input[name="deckFill"]').forEach(r => r.closest('.gc-option').classList.remove('active'));
+        radio.closest('.gc-option').classList.add('active');
+        deckFillFilter = radio.value;
+        if (allCommandersData.length > 0) {
+          renderCommanders(getFilteredCommanders(), totalCardsCount);
+        }
+      });
+    });
+
+    function getFilteredCommanders() {
+      if (deckFillFilter === 'all') return allCommandersData;
+      const min = deckFillFilter === 'full' ? 99 : 80;
+      return allCommandersData.filter(cmd => cmd.validCardCount >= min);
+    }
 
     // ── Land slider ───────────────────────────────────────────────────────
     const landSlider    = document.getElementById('landSlider');
@@ -1019,8 +1111,9 @@
 
         sessionId = data.sessionId;
         allCommandersData = data.commanders;
+        totalCardsCount = data.totalCards;
         partnerCandidates = data.partnerCandidates || [];
-        renderCommanders(data.commanders, data.totalCards);
+        renderCommanders(getFilteredCommanders(), totalCardsCount);
         setStatus(`Analysed ${data.totalCards} card(s) — found ${data.commanderCount} potential commander(s)`);
       } catch (e) {
         showError('Network error: ' + e.message);
@@ -1035,8 +1128,10 @@
       commanderGrid.innerHTML = '';
 
       if (commanders.length === 0) {
-        commanderGrid.innerHTML = `<p style="color:var(--text-dim);font-style:italic;grid-column:1/-1;">
-          No legal commanders found in your collection.</p>`;
+        const msg = allCommandersData.length > 0
+          ? 'No commanders match the current filter — try a less strict Collection Fill setting.'
+          : 'No legal commanders found in your collection.';
+        commanderGrid.innerHTML = `<p style="color:var(--text-dim);font-style:italic;grid-column:1/-1;">${msg}</p>`;
       }
 
       commanders.forEach((cmd, i) => {
@@ -1050,15 +1145,25 @@
 
         const pipsHtml = cmd.colorIdentity.map(c => `<span class="pip pip-${c}" title="${colorName(c)}">${c}</span>`).join('');
 
+        const isPair = !!cmd.partner;
+
+        const artHtml = isPair
+          ? `<div class="art-half art-left">${cmd.imageUrl ? `<img src="${escHtml(cmd.imageUrl)}" alt="${escHtml(cmd.name)}" loading="lazy" />` : ''}</div>
+             <div class="art-half art-right">${cmd.partner.imageUrl ? `<img src="${escHtml(cmd.partner.imageUrl)}" alt="${escHtml(cmd.partner.name)}" loading="lazy" />` : ''}</div>`
+          : (cmd.imageUrl
+              ? `<img src="${escHtml(cmd.imageUrl)}" alt="${escHtml(cmd.name)}" loading="lazy" />`
+              : `<div class="card-art-placeholder">🃏</div>`);
+
+        const nameHtml = isPair
+          ? `<div class="card-name pair-name">${escHtml(cmd.name)}<span class="pair-amp">&amp; ${escHtml(cmd.partner.name)}</span></div>`
+          : `<div class="card-name">${escHtml(cmd.name)}</div>`;
+
         card.innerHTML = `
-          <div class="card-art">
-            ${cmd.imageUrl
-              ? `<img src="${cmd.imageUrl}" alt="${escHtml(cmd.name)}" loading="lazy" />`
-              : `<div class="card-art-placeholder">🃏</div>`
-            }
+          <div class="card-art${isPair ? ' card-art-pair' : ''}">
+            ${artHtml}
           </div>
           <div class="card-body">
-            <div class="card-name">${escHtml(cmd.name)}</div>
+            ${nameHtml}
             <div class="card-meta">
               <div class="pips">${pipsHtml || '<span style="color:var(--text-dim);font-size:11px;">Colorless</span>'}</div>
               <div class="match-score ${textClass}">${pct}%</div>
@@ -1070,8 +1175,14 @@
         card.dataset.commanderName = cmd.name;
         card.addEventListener('click', () => selectCommander(card, cmd));
 
-        if (cmd.imageUrl) {
-          card.addEventListener('mouseenter', e => showCardPreview(cmd.imageUrl, cmd.imageUrlBack, cmd.oracleText, e));
+        if (cmd.imageUrl || cmd.partner?.imageUrl) {
+          card.addEventListener('mouseenter', e => showCardPreview(
+            cmd.imageUrl,
+            isPair ? null : cmd.imageUrlBack,
+            isPair ? null : cmd.oracleText,
+            e,
+            isPair ? (cmd.partner?.imageUrl ?? null) : null
+          ));
           card.addEventListener('mousemove',  e => movePreview(e));
           card.addEventListener('mouseleave', hidePreview);
         }
@@ -1079,14 +1190,16 @@
         commanderGrid.appendChild(card);
       });
 
-      resultsCount.textContent = commanders.length
-        ? `${commanders.length} found · sorted by EDHRec match`
-        : '';
+      const filteredLabel = commanders.length !== allCommandersData.length
+        ? `${commanders.length} of ${allCommandersData.length} · sorted by EDHRec match`
+        : `${commanders.length} found · sorted by EDHRec match`;
+      resultsCount.textContent = commanders.length ? filteredLabel : '';
       commanderSection.style.display = '';
     }
 
     // ── Partner selection helpers ──────────────────────────────────────────
     function isCompatiblePartner(pendingCmd, candidateCmd) {
+      if (candidateCmd.partner) return false; // already a pre-built pair, not selectable as individual partner
       const pType = pendingCmd.partnerType;
       const cType = candidateCmd.partnerType;
       if (!pType) return false;
@@ -1094,6 +1207,8 @@
       if (pType === 'friends-forever' && cType === 'friends-forever') return true;
       if (pType === 'partner-with' && pendingCmd.partnerWith &&
           pendingCmd.partnerWith.toLowerCase() === candidateCmd.name.toLowerCase()) return true;
+      if (pType === 'doctor' && cType === 'doctors-companion') return true;
+      if (pType === 'doctors-companion' && cType === 'doctor') return true;
       return false;
     }
 
@@ -1105,7 +1220,11 @@
       banner.id = 'partnerBanner';
       const label = cmd.partnerType === 'chooses-background'
         ? 'Choose a Background enchantment to pair'
-        : 'Select a partner commander';
+        : cmd.partnerType === 'doctor'
+          ? "Select a Doctor's Companion to pair"
+          : cmd.partnerType === 'doctors-companion'
+            ? 'Select a Doctor to pair'
+            : 'Select a partner commander';
       banner.innerHTML = `<span>${escHtml(label)}</span><button onclick="skipPartner()">Build without partner</button>`;
       commanderGrid.insertBefore(banner, commanderGrid.firstChild);
 
@@ -1195,6 +1314,12 @@
       selectedCommander = name;
       document.querySelectorAll('.commander-card').forEach(c => c.classList.remove('selected'));
       cardEl.classList.add('selected');
+
+      // Pre-computed pair: build directly, no intermediate partner selection
+      if (cmd.partner) {
+        await buildDeckWithPair(name, cmd.partner.name);
+        return;
+      }
 
       if (cmd.partnerType) {
         enterPartnerSelectionMode(cmd);
@@ -1289,16 +1414,34 @@
       const imgEl = document.getElementById('deckCommanderImg');
       imgEl.src = deck.commander.imageUrl || '';
       imgEl.style.display = deck.commander.imageUrl ? '' : 'none';
-      document.getElementById('deckCommanderName').textContent = deck.commander.name;
+
+      const img2El = document.getElementById('deckCommanderImg2');
+      if (deck.partner) {
+        img2El.src = deck.partner.imageUrl || '';
+        img2El.style.display = deck.partner.imageUrl ? '' : 'none';
+        document.getElementById('deckCommanderName').textContent =
+          deck.commander.name + ' & ' + deck.partner.name;
+      } else {
+        img2El.style.display = 'none';
+        document.getElementById('deckCommanderName').textContent = deck.commander.name;
+      }
 
       const deckHeader = document.querySelector('.deck-header');
-      deckHeader.onmouseenter = e => showCardPreview(deck.commander.imageUrl, deck.commander.imageUrlBack, deck.commander.oracleText, e);
+      deckHeader.onmouseenter = e => showCardPreview(
+        deck.commander.imageUrl,
+        deck.partner ? null : deck.commander.imageUrlBack,
+        deck.partner ? null : deck.commander.oracleText,
+        e,
+        deck.partner ? deck.partner.imageUrl : null
+      );
       deckHeader.onmousemove  = e => movePreview(e);
       deckHeader.onmouseleave = hidePreview;
 
       const pipsEl = document.getElementById('deckCommanderPips');
-      pipsEl.innerHTML = deck.commander.colorIdentity
-        .map(c => `<span class="pip pip-${c}">${c}</span>`).join('');
+      const combinedColors = deck.partner
+        ? [...new Set([...deck.commander.colorIdentity, ...deck.partner.colorIdentity])]
+        : deck.commander.colorIdentity;
+      pipsEl.innerHTML = combinedColors.map(c => `<span class="pip pip-${c}">${c}</span>`).join('');
 
       document.getElementById('deckTotal').textContent = deck.totalCards;
 
@@ -1367,13 +1510,26 @@
     }
 
     // ── Card preview tooltip ───────────────────────────────────────────────
-    function showCardPreview(frontUrl, backUrl, oracleText, e) {
-      if (!frontUrl) return;
+    function showCardPreview(frontUrl, backUrl, oracleText, e, front2Url = null) {
+      if (!frontUrl && !front2Url) return;
       previewFrontUrl = frontUrl;
-      previewBackUrl  = backUrl || null;
       previewShowBack = false;
-      cardPreviewImg.src = frontUrl;
-      cardPreviewFlipHint.style.display = backUrl ? '' : 'none';
+      cardPreviewImg.src = frontUrl || '';
+      cardPreviewImg.style.display = frontUrl ? '' : 'none';
+
+      if (front2Url) {
+        cardPreviewImg2.src = front2Url;
+        cardPreviewImg2.style.display = '';
+        cardPreview.style.width = '448px';
+        previewBackUrl = null;
+        cardPreviewFlipHint.style.display = 'none';
+      } else {
+        cardPreviewImg2.style.display = 'none';
+        cardPreview.style.width = '220px';
+        previewBackUrl = backUrl || null;
+        cardPreviewFlipHint.style.display = backUrl ? '' : 'none';
+      }
+
       if (oracleText) {
         cardPreviewOracle.textContent = oracleText;
         cardPreviewOracle.style.display = '';
@@ -1387,7 +1543,7 @@
     function movePreview(e) {
       const x = e.clientX + 16;
       const y = e.clientY - 60;
-      const maxX = window.innerWidth  - 240;
+      const maxX = window.innerWidth - cardPreview.offsetWidth - 8;
       const maxY = window.innerHeight - 520;
       cardPreview.style.left = Math.min(x, maxX) + 'px';
       cardPreview.style.top  = Math.max(10, Math.min(y, maxY)) + 'px';

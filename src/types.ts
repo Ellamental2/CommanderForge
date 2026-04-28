@@ -50,6 +50,8 @@ export type PartnerType =
   | 'partner-with'      // Partner with X — pairs only with the named card
   | 'chooses-background'// Choose a Background — pairs with any 'background'
   | 'background'        // Background enchantment — pairs with any 'chooses-background'
+  | 'doctors-companion' // Doctor's Companion — pairs with any legendary creature with the Doctor subtype
+  | 'doctor'           // Legendary creature with Doctor subtype — pairs with any 'doctors-companion'
   | null;
 
 export interface CommanderResult {
@@ -64,6 +66,13 @@ export interface CommanderResult {
   oracleText: string;
   partnerType: PartnerType;
   partnerWith: string | null; // only set when partnerType === 'partner-with'
+  partner?: {
+    name: string;
+    imageUrl: string | null;
+    imageUrlBack: string | null;
+    oracleText: string;
+    colorIdentity: string[];
+  };
 }
 
 export interface DeckCard {

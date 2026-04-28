@@ -78,6 +78,26 @@ export async function fetchCardsBatch(parsedCards: ParsedCard[]): Promise<OwnedC
   return results;
 }
 
+const STANDARD_BASICS = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'];
+let _basicLandsCache: OwnedCard[] | null = null;
+
+/**
+ * Returns the 5 standard basic land cards with quantity 99, fetched once and cached.
+ * Used so decks can always fill basic land slots regardless of what the user listed.
+ */
+export async function fetchBasicLands(): Promise<OwnedCard[]> {
+  if (_basicLandsCache) return _basicLandsCache;
+  const response = await fetch(`${SCRYFALL_BASE}/cards/collection`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identifiers: STANDARD_BASICS.map(name => ({ name })) }),
+  });
+  if (!response.ok) return [];
+  const data = (await response.json()) as CollectionResponse;
+  _basicLandsCache = data.data.map(card => ({ quantity: 99, card }));
+  return _basicLandsCache;
+}
+
 /** Get a card image URL, handling double-faced cards */
 export function getCardImageUrl(
   card: ScryfallCard,
