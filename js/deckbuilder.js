@@ -258,7 +258,7 @@ async function buildDeck(commander, allOwned, partner, gcLimit = 'unlimited', ta
     const ar = edhrecMap.get(a.card.name.toLowerCase()), br = edhrecMap.get(b.card.name.toLowerCase());
     if (ar && !br) return -1; if (!ar && br) return 1;
     if (ar && br) return ar.rank - br.rank;
-    return (a.card.cmc ?? 0) - (b.card.cmc ?? 0);
+    return (a.card.edhrec_rank ?? Infinity) - (b.card.edhrec_rank ?? Infinity);
   };
   const ownedLands    = validOwned.filter(oc =>  getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
   const ownedNonLands = validOwned.filter(oc => !getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
