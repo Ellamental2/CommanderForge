@@ -709,6 +709,59 @@
     }
 
     .legend-item { display: flex; align-items: center; gap: 6px; }
+
+    /* ── Land count slider ────────────────────────────────────────────── */
+    .land-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .land-slider-val {
+      color: var(--gold);
+      font-size: 15px;
+      letter-spacing: 0;
+      min-width: 20px;
+      display: inline-block;
+    }
+
+    .land-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 130px;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .land-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--gold);
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(201,168,76,0.45);
+    }
+
+    .land-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--gold);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 6px rgba(201,168,76,0.45);
+    }
   </style>
 </head>
 <body>
@@ -778,6 +831,10 @@
             <span class="deck-stat" id="deckSlotsStat"></span>
           </div>
           <div id="slotsWarning" class="slots-warning" style="display:none;"></div>
+          <div class="land-slider-row">
+            Lands: <span class="land-slider-val" id="landSliderVal">38</span>
+            <input type="range" class="land-slider" id="landSlider" min="0" max="99" value="38" />
+          </div>
         </div>
       </div>
       <div class="deck-categories" id="deckCategories"></div>
@@ -805,11 +862,13 @@
     // ── State ──────────────────────────────────────────────────────────────
     let ownedCards        = null;   // OwnedCard[] — replaces server session
     let selectedCommander = null;
+    let selectedPartner   = null;
     let currentDeck       = null;
     const cardImages      = {};     // name → imageUrl cache
     let allCommandersData  = [];
     let partnerCandidates  = [];
     let pendingCommanderData = null;
+    let targetLands = null;  // null = let buildDeck auto-calculate
 
     // ── DOM refs ───────────────────────────────────────────────────────────
     const fileInput       = document.getElementById('fileInput');
@@ -860,6 +919,40 @@
       });
     });
 
+    // ── Land slider ───────────────────────────────────────────────────────
+    const landSlider    = document.getElementById('landSlider');
+    const landSliderVal = document.getElementById('landSliderVal');
+
+    landSlider.addEventListener('input', () => {
+      landSliderVal.textContent = landSlider.value;
+    });
+
+    landSlider.addEventListener('change', () => {
+      targetLands = parseInt(landSlider.value, 10);
+      if (selectedCommander && ownedCards) rebuildCurrentDeck();
+    });
+
+    async function rebuildCurrentDeck() {
+      if (!selectedCommander || !ownedCards) return;
+      const cmdCard = ownedCards.find(oc => oc.card.name.toLowerCase() === selectedCommander.toLowerCase())?.card;
+      if (!cmdCard) return;
+      deckSection.style.display = 'none';
+      setStatus('<span class="spinner"></span>Rebuilding deck…');
+      try {
+        const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
+        let partnerCard = null;
+        if (selectedPartner) {
+          partnerCard = ownedCards.find(oc => oc.card.name.toLowerCase() === selectedPartner.toLowerCase())?.card ?? null;
+        }
+        const deck = await buildDeck(cmdCard, ownedCards, gcLimit, partnerCard, targetLands ?? undefined);
+        renderDeck(deck);
+        setStatus(`Deck built — ${deck.totalCards}/100 cards`);
+      } catch (e) {
+        showError('Error: ' + e.message);
+        setStatus('');
+      }
+    }
+
     // ── File load ──────────────────────────────────────────────────────────
     fileInput.addEventListener('change', () => {
       const file = fileInput.files[0];
@@ -892,7 +985,9 @@
       checkReady();
       ownedCards = null;
       selectedCommander = null;
+      selectedPartner = null;
       currentDeck = null;
+      targetLands = null;
       allCommandersData = [];
       partnerCandidates = [];
       pendingCommanderData = null;
@@ -1142,6 +1237,8 @@
         clearPartnerSelection();
       }
 
+      // Reset land target when switching to a different commander
+      if (name !== selectedCommander) targetLands = null;
       selectedCommander = name;
       document.querySelectorAll('.commander-card').forEach(c => c.classList.remove('selected'));
       cardEl.classList.add('selected');
@@ -1155,11 +1252,12 @@
     }
 
     async function buildDeckSingle(commanderCard) {
+      selectedPartner = null;
       deckSection.style.display = 'none';
       setStatus('<span class="spinner"></span>Building deck…');
       try {
         const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
-        const deck = await buildDeck(commanderCard, ownedCards, gcLimit);
+        const deck = await buildDeck(commanderCard, ownedCards, gcLimit, null, targetLands ?? undefined);
         renderDeck(deck);
         setStatus(`Deck built — ${deck.totalCards}/100 cards`);
       } catch (e) {
@@ -1169,11 +1267,12 @@
     }
 
     async function buildDeckWithPair(commanderOwned, partnerCard, cmdData) {
+      selectedPartner = partnerCard.name;
       deckSection.style.display = 'none';
       setStatus('<span class="spinner"></span>Building deck…');
       try {
         const gcLimit = document.querySelector('input[name="gcLimit"]:checked')?.value ?? 'unlimited';
-        const deck = await buildDeck(commanderOwned.card, ownedCards, gcLimit, partnerCard);
+        const deck = await buildDeck(commanderOwned.card, ownedCards, gcLimit, partnerCard, targetLands ?? undefined);
         renderDeck(deck);
         setStatus(`Deck built — ${deck.totalCards}/100 cards`);
       } catch (e) {
@@ -1185,6 +1284,16 @@
     // ── Render deck ────────────────────────────────────────────────────────
     function renderDeck(deck) {
       currentDeck = deck;
+
+      // Sync land slider: max = deck slots (99 or 98), value = auto-calculated target
+      landSlider.max = deck.deckSize;
+      if (targetLands === null) {
+        landSlider.value = deck.targetLands;
+        landSliderVal.textContent = deck.targetLands;
+      } else {
+        landSlider.value = targetLands;
+        landSliderVal.textContent = targetLands;
+      }
 
       const imgEl = document.getElementById('deckCommanderImg');
       imgEl.src = deck.commander.imageUrl || '';
@@ -1618,9 +1727,9 @@
     function caresAboutLands(card)    { return LAND_CARE_RE.test(getOracleText(card)); }
     function isNonLandManaSource(card){ return !getTypeLine(card).includes('Land') && MANA_SOURCE_RE.test(getOracleText(card)); }
 
-    const BASE_LANDS = 38;
+    const BASE_LANDS = 39;
 
-    function calculateTargetLands(commander, ownedNonLands) {
+    function calculateTargetLands(commander, ownedNonLands, deckSize = 99) {
       const sample          = ownedNonLands.slice(0, 61);
       const landCaringCount = sample.filter(oc => caresAboutLands(oc.card)).length;
       const manaSourceCount = sample.filter(oc => isNonLandManaSource(oc.card)).length;
@@ -1631,8 +1740,8 @@
       } else if (landCaringCount >= 5) {
         target += Math.min(Math.floor(landCaringCount / 3), 4);
       }
-      target -= Math.floor(manaSourceCount / 2);
-      return Math.max(30, Math.min(45, target));
+      target -= Math.floor(manaSourceCount / 3);
+      return Math.max(35, Math.min(deckSize, target));
     }
 
     const MANA_COLORS   = new Set(['W', 'U', 'B', 'R', 'G']);
@@ -1707,7 +1816,7 @@
       return result;
     }
 
-    async function buildDeck(commander, allOwned, gcLimit = 'unlimited', partner = null) {
+    async function buildDeck(commander, allOwned, gcLimit = 'unlimited', partner = null, targetLandsOverride = undefined) {
       const edhrecCards = await fetchCommanderData(commander.name, partner?.name);
       const edhrecMap   = new Map(edhrecCards.map(c => [c.name.toLowerCase(), c]));
 
@@ -1716,8 +1825,11 @@
         ? [...new Set([...commander.color_identity, ...partner.color_identity])]
         : commander.color_identity;
 
+      // Exclude Commander-banned cards (Scryfall sets legalities.commander = 'banned')
+      // and cards outside the combined colour identity or already in the command zone.
       const validOwned = allOwned.filter(
-        oc => oc.card.id !== commander.id &&
+        oc => oc.card.legalities?.commander === 'legal' &&
+              oc.card.id !== commander.id &&
               (!partner || oc.card.id !== partner.id) &&
               fitsColorIdentity(combinedColors, oc.card.color_identity)
       );
@@ -1734,7 +1846,9 @@
       const ownedLands    = validOwned.filter(oc =>  getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
       const ownedNonLands = validOwned.filter(oc => !getTypeLine(oc.card).includes('Land')).sort(edhrecSort);
 
-      const targetLands  = calculateTargetLands(commander, ownedNonLands);
+      const targetLands = targetLandsOverride !== undefined
+        ? Math.max(0, Math.min(deckSize, targetLandsOverride))
+        : calculateTargetLands(commander, ownedNonLands, deckSize);
       const nonLandSlots = deckSize - targetLands;
 
       const deckCards  = [];
@@ -1799,6 +1913,8 @@
         cards: deckCards,
         totalCards: (partner ? 2 : 1) + cardCount,
         slotsRemaining: deckSize - cardCount,
+        targetLands,
+        deckSize,
       };
     }
 
