@@ -64,6 +64,11 @@ header::after {
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }
 
+.header-logo {
+  width: 300px;
+  filter: drop-shadow(0 0 12px rgba(201,168,76,0.25));
+}
+
 .header-eyebrow {
   font-family: 'Cinzel', serif;
   font-size: 11px;
@@ -88,6 +93,37 @@ h1 {
   color: var(--text-dim);
   font-style: italic;
   font-size: 17px;
+}
+
+.patreon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  padding: 8px 20px;
+  border-radius: var(--radius);
+  background: rgba(255, 66, 77, 0.1);
+  border: 1px solid rgba(255, 66, 77, 0.35);
+  color: #ff6b74;
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.patreon-btn:hover {
+  background: rgba(255, 66, 77, 0.2);
+  border-color: rgba(255, 66, 77, 0.7);
+  color: #ff8a91;
+}
+
+.patreon-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  flex-shrink: 0;
 }
 
 /* ── Upload Section ───────────────────────────────────────────────── */
